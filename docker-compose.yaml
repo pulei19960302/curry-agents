@@ -1,0 +1,55 @@
+services:
+  # 负责持久化业务数据。后续会话、事件、文件记录都会写入数据库
+  postgres:
+    image: postgres:16-alpine
+    container_name: curry-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-curry_agents}
+    # 负责保存容器生命周期之外的数据。容器可以删，数据卷里的数据还在
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    # 负责让容器之间通信。后续 API 连接数据库时，主机名会使用 postgres，不是 localhost
+    networks:
+      - curry-network
+    # 负责告诉 Docker 当前服务是否真的可用。容器启动和服务可用不是同一件事
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-curry_agents}",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # 负责缓存和消息流基础能力。后续后台任务和事件推送会用到它
+  redis:
+    image: redis:7-alpine
+    container_name: curry-redis
+    restart: unless-stopped
+    command: >
+      redis-server
+      --appendonly yes
+      --maxmemory 256mb
+      --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    networks:
+      - curry-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  curry-network:
+    name: curry-network
+    driver: bridge
