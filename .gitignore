@@ -1,2 +1,25 @@
+# Environment
 .env
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Python coverage and build artifacts
+.coverage
+coverage.xml
+htmlcov/
+build/
+dist/
+*.egg-info/
+
+# IDE and OS
+.idea/
+.DS_Store
+
+# Node.js
 node_modules/
