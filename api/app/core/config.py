@@ -9,6 +9,23 @@ class Settings(BaseSettings):
     api_env: str = "development"
     api_version: str = "0.1.0"
     api_prefix: str = "/api"
+    # 允许哪些前端地址访问 API。
+    cors_allow_origins: list[str] = [
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+    ]
+    # 是否允许携带 Cookie 或认证信息。
+    cors_allow_credentials: bool = True
+
+    # 允许那些http 方法
+    cors_allow_methods: list[str] = ["*"]
+
+    # 允许哪些请求头。
+    cors_allow_headers: list[str] = ["*"]
+
+    # 日志级别
+    log_level: str = "INFO"
+
 
     model_config = SettingsConfigDict(
         env_file=".env",
