@@ -7,3 +7,7 @@ class StatusData(BaseModel):
     environment: str
     status: str
     version: str
+
+# 数据库状态
+class DatabaseStatusData(BaseModel):
+    status: str

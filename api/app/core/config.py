@@ -26,11 +26,17 @@ class Settings(BaseSettings):
     # 日志级别
     log_level: str = "INFO"
 
+    # 数据库配置 postgresql+asyncpg://用户名:密码@主机:端口/数据库名
+    database_url: str = (
+        "postgresql+asyncpg://postgres:postgres@localhost:5432/curry_agents"
+    )
+
+    database_echo: bool = True
 
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
-        extra="ignore"
+        extra="ignore",
     )
 
 

@@ -61,6 +61,8 @@ services:
       CORS_ALLOW_CREDENTIALS: ${CORS_ALLOW_CREDENTIALS:-true}
       CORS_ALLOW_METHODS: ${CORS_ALLOW_METHODS:-["*"]}
       CORS_ALLOW_HEADERS: ${CORS_ALLOW_HEADERS:-["*"]}
+      DATABASE_URL: ${DATABASE_URL:-postgresql+asyncpg://postgres:postgres@postgres:5432/curry_agents}
+      DATABASE_ECHO: ${DATABASE_ECHO:-false}
     ports:
       - "${API_PORT:-8000}:8000"
     networks:
