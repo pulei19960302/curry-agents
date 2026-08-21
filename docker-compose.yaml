@@ -71,6 +71,41 @@ services:
       timeout: 5s
       retries: 5
 
+  # ui相关服务
+  ui:
+    build:
+      context: ./ui
+      args:
+        API_PROXY_URL: ${UI_API_PROXY_URL:-http://api:8000/api/:path*}
+        NPM_REGISTRY: ${NPM_REGISTRY:-https://registry.npmmirror.com}
+    container_name: curry-ui
+    restart: unless-stopped
+    environment:
+      API_PROXY_URL: ${UI_API_PROXY_URL:-http://api:8000/api/:path*}
+      NEXT_TELEMETRY_DISABLED: 1
+    ports:
+      - "${UI_PORT:-3000}:3000"
+    networks:
+      - curry-network
+    depends_on:
+      - api
+
+  # nginx 相关服务
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: curry-nginx
+    restart: unless-stopped
+    ports:
+      - "${NGINX_PORT:-8088}:80"
+    volumes:
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+    networks:
+      - curry-network
+    depends_on:
+      - api
+      - ui
+
+
 
 volumes:
   postgres_data:
