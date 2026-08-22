@@ -13,3 +13,8 @@ export type ApiStatusData = {
   status: string;
   version: string;
 };
+
+
+export type DatabaseStatusData = {
+  status: string;
+};
