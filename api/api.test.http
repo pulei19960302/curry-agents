@@ -1,11 +1,76 @@
-### GET request to example server
-GET https://examples.http-client.intellij.net/get
-    ?generated-in=PyCharm
+@baseUrl = http://localhost:8000/api
+@sessionId = 6c443ee2-de2f-4b61-a8b5-c4bc85054d5e
+@notFoundSessionId = 00000000-0000-0000-0000-000000000000
 
-###
-POST http://localhost:8000/api/sessions/6c443ee2-de2f-4b61-a8b5-c4bc85054d5e/messages
+### 服务状态
+GET {{baseUrl}}/status
+Accept: application/json
+
+### 数据库状态
+GET {{baseUrl}}/status/database
+Accept: application/json
+
+### 查询 Session 列表
+GET {{baseUrl}}/sessions
+Accept: application/json
+
+### 创建 Session
+POST {{baseUrl}}/sessions
 Content-Type: application/json
+Accept: application/json
+
+{
+  "title": "HTTP Client 测试会话"
+}
+
+### 向指定 Session 发送消息
+POST {{baseUrl}}/sessions/{{sessionId}}/messages
+Content-Type: application/json
+Accept: application/json
 
 {
   "content": "帮我规划一个 AI Agent 学习任务"
 }
+
+### 查询指定 Session 的消息列表
+GET {{baseUrl}}/sessions/{{sessionId}}/messages
+Accept: application/json
+
+### 查询指定 Session 的事件列表
+GET {{baseUrl}}/sessions/{{sessionId}}/events
+Accept: application/json
+
+### 创建 Session 参数校验：空标题，预期 422
+POST {{baseUrl}}/sessions
+Content-Type: application/json
+Accept: application/json
+
+{
+  "title": ""
+}
+
+### 创建消息参数校验：空内容，预期 422
+POST {{baseUrl}}/sessions/{{sessionId}}/messages
+Content-Type: application/json
+Accept: application/json
+
+{
+  "content": ""
+}
+
+### Session ID 格式校验，预期 422
+GET {{baseUrl}}/sessions/not-a-uuid/messages
+Accept: application/json
+
+### 不存在的 Session 创建消息，预期 404
+POST {{baseUrl}}/sessions/{{notFoundSessionId}}/messages
+Content-Type: application/json
+Accept: application/json
+
+{
+  "content": "这条消息不应该被创建"
+}
+
+### 删除不存在的 Session，预期 404；避免误删真实测试数据
+DELETE {{baseUrl}}/sessions/{{notFoundSessionId}}
+Accept: application/json
