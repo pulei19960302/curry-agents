@@ -1,17 +1,24 @@
 from uuid import UUID
 
-from pydantic import BaseModel
-
 from app.application.unit_of_work import UnitOfWork
 from app.core.exceptions import AppException
 
-from app.domain.sessions.entities import Session
+from app.domain.sessions.entities import Session, SessionMessage, SessionEvent, SessionEventType
 
 
 class SessionService:
 
     def __init__(self, uow: UnitOfWork) -> None:
         self.uow = uow
+
+
+    async def get_session(self, session_id: UUID) -> Session:
+        session = await self.uow.sessions.get(session_id)
+        if session is None:
+            raise AppException(message="session not found", code=404, status_code=404)
+        return session
+
+
 
     async def create_session(self, title: str) -> Session:
 
@@ -36,3 +43,39 @@ class SessionService:
         await self.uow.commit()
 
 
+    # 创建用户消息和event
+    async def create_user_message(self, session_id: UUID, content: str) -> tuple[SessionMessage, SessionEvent]:
+        await self.get_session(session_id)
+        clean_content = content.strip()
+        if not clean_content:
+            raise AppException(message="message content is required", code=400, status_code=400)
+
+        message = await self.uow.session_messages.add_user_message(
+            session_id = session_id,
+            content = clean_content
+        )
+
+        event = await self.uow.session_event.add(
+            session_id = session_id,
+            event_type=SessionEventType.message_created,
+            payload= {
+                "message_id": str(message.id),
+                "role": message.role.value,
+                "content": message.content,
+            }
+        )
+        # 更新session的更新时间
+        await self.uow.sessions.touch(session_id)
+        # 提交事务
+        await self.uow.commit()
+        return message, event
+
+
+    # 根据session id查询message list集合
+    async def list_messages(self, session_id: UUID) -> list[SessionMessage]:
+        return await self.uow.session_messages.list_by_session(session_id)
+
+
+    # 根据session id 查询event list 集合
+    async def list_events(self, session_id: UUID) -> list[SessionEvent]:
+        return await self.uow.session_event.list_by_session(session_id)

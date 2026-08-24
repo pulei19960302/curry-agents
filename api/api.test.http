@@ -1,0 +1,11 @@
+### GET request to example server
+GET https://examples.http-client.intellij.net/get
+    ?generated-in=PyCharm
+
+###
+POST http://localhost:8000/api/sessions/6c443ee2-de2f-4b61-a8b5-c4bc85054d5e/messages
+Content-Type: application/json
+
+{
+  "content": "帮我规划一个 AI Agent 学习任务"
+}

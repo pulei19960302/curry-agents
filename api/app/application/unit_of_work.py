@@ -3,9 +3,11 @@ from typing import Self
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.domain.sessions.repositories import SessionRepository
+from app.domain.sessions.repositories import SessionRepository, SessionMessageRepository, SessionEventRepository
 from app.infrastructure.repositories.session_repository import (
     SqlAlchemySessionRepository,
+    SqlAlchemySessionEventRepository,
+    SqlAlchemySessionMessageRepository
 )
 
 
@@ -15,6 +17,8 @@ class UnitOfWork:
     def __init__(self, db_session: AsyncSession) -> None:
         self._db_session = db_session
         self.sessions: SessionRepository = SqlAlchemySessionRepository(db_session)
+        self.session_messages: SessionMessageRepository = SqlAlchemySessionMessageRepository(db_session)
+        self.session_event: SessionEventRepository = SqlAlchemySessionEventRepository(db_session)
 
     async def __aenter__(self) -> Self:
         return self

@@ -1,20 +1,16 @@
 "use client";
 
 import { CheckCircle2, Clock3, Wifi } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 
 import AppSidebar from "./components/app-sidebar";
+import ChatWorkspace from "./components/chat-workspace";
 import SessionPanel from "./components/session-panel";
 import StatusBadge from "./components/status-badge";
 import StatusPanel from "./components/status-panel";
-import TaskFlowPreview from "./components/task-flow-preview";
-import { requestApi } from "./lib/api";
-import type {
-  LoadState,
-  SessionItem,
-  SessionListData,
-  StatusBadgeView,
-} from "@/types/sessions";
+import useSessionWorkspace from "./hooks/use-session-workspace";
+import { requestApi } from "@/lib/api";
+import type { LoadState, StatusBadgeView } from "@/types/sessions";
 
 import type { ApiStatusData, DatabaseStatusData } from "@/types/api";
 
@@ -25,15 +21,8 @@ export default function Home() {
   const [databaseStatus, setDatabaseStatus] = useState<
     LoadState<DatabaseStatusData>
   >({ type: "loading" });
-  const [sessions, setSessions] = useState<LoadState<SessionItem[]>>({
-    type: "loading",
-  });
-  const [selectedSessionId, setSelectedSessionId] = useState<string | null>(
-    null,
-  );
-  const [title, setTitle] = useState("");
-  const [submitting, setSubmitting] = useState(false);
-  const [actionError, setActionError] = useState<string | null>(null);
+
+  const workspace = useSessionWorkspace();
 
   async function loadStatus() {
     const [apiData, databaseData] = await Promise.all([
@@ -44,21 +33,10 @@ export default function Home() {
     setDatabaseStatus({ type: "ready", data: databaseData });
   }
 
-  async function loadSessions() {
-    const data = await requestApi<SessionListData>("/api/sessions");
-    setSessions({ type: "ready", data: data.items });
-    setSelectedSessionId((current) => {
-      if (current && data.items.some((item) => item.id === current)) {
-        return current;
-      }
-      return data.items[0]?.id ?? null;
-    });
-  }
-
   async function refreshAll() {
-    setActionError(null);
+    workspace.setActionError(null);
     try {
-      await Promise.all([loadStatus(), loadSessions()]);
+      await Promise.all([loadStatus(), workspace.refreshSessions()]);
     } catch (error) {
       const message = error instanceof Error ? error.message : "unknown error";
       setApiStatus((current) =>
@@ -67,58 +45,17 @@ export default function Home() {
       setDatabaseStatus((current) =>
         current.type === "loading" ? { type: "error", message } : current,
       );
-      setSessions((current) =>
-        current.type === "loading" ? { type: "error", message } : current,
-      );
-      setActionError(message);
+      workspace.setActionError(message);
     }
   }
 
   useEffect(() => {
-    refreshAll();
+    loadStatus().catch((error) => {
+      const message = error instanceof Error ? error.message : "unknown error";
+      setApiStatus({ type: "error", message });
+      setDatabaseStatus({ type: "error", message });
+    });
   }, []);
-
-  async function handleCreateSession() {
-    const cleanTitle = title.trim();
-    if (!cleanTitle) {
-      setActionError("请输入会话标题");
-      return;
-    }
-
-    setSubmitting(true);
-    setActionError(null);
-    try {
-      const created = await requestApi<SessionItem>("/api/sessions", {
-        method: "POST",
-        body: JSON.stringify({ title: cleanTitle }),
-      });
-      setTitle("");
-      setSelectedSessionId(created.id);
-      await loadSessions();
-    } catch (error) {
-      setActionError(error instanceof Error ? error.message : "unknown error");
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
-  async function handleDeleteSession(sessionId: string) {
-    setActionError(null);
-    try {
-      await requestApi<void>(`/api/sessions/${sessionId}`, {
-        method: "DELETE",
-      });
-      await loadSessions();
-    } catch (error) {
-      setActionError(error instanceof Error ? error.message : "unknown error");
-    }
-  }
-
-  const sessionItems = sessions.type === "ready" ? sessions.data : [];
-  const selectedSession = useMemo(
-    () => sessionItems.find((item) => item.id === selectedSessionId) ?? null,
-    [selectedSessionId, sessionItems],
-  );
 
   const apiBadge = getBadge(apiStatus, "API 正常", "API 异常");
   const dbBadge = getBadge(databaseStatus, "数据库正常", "数据库异常");
@@ -127,26 +64,26 @@ export default function Home() {
     <main className="min-h-screen bg-[#f6f7f9] text-slate-950">
       <div className="grid min-h-screen grid-cols-[320px_1fr] max-lg:grid-cols-1">
         <AppSidebar
-          actionError={actionError}
-          onCreateSession={handleCreateSession}
-          onDeleteSession={handleDeleteSession}
+          actionError={workspace.actionError}
+          onCreateSession={workspace.createSession}
+          onDeleteSession={workspace.deleteSession}
           onRefresh={refreshAll}
-          onSelectSession={setSelectedSessionId}
-          onTitleChange={setTitle}
-          selectedSessionId={selectedSessionId}
-          sessions={sessions}
-          submitting={submitting}
-          title={title}
+          onSelectSession={workspace.selectSession}
+          onTitleChange={workspace.setTitle}
+          selectedSessionId={workspace.selectedSessionId}
+          sessions={workspace.sessions}
+          submitting={workspace.submitting}
+          title={workspace.title}
         />
 
         <section className="flex min-w-0 flex-col">
           <header className="flex min-h-16 items-center justify-between border-b border-slate-200 bg-white px-6 max-sm:flex-col max-sm:items-start max-sm:gap-3 max-sm:px-4 max-sm:py-4">
             <div>
               <h1 className="text-xl font-semibold tracking-normal text-slate-950">
-                {selectedSession?.title ?? "工作台"}
+                {workspace.selectedSession?.title ?? "工作台"}
               </h1>
               <p className="mt-1 text-sm text-slate-500">
-                创建会话后，后续章节会在这里展示聊天与事件流
+                创建会话后，可以发送第一条任务消息
               </p>
             </div>
             <div className="flex gap-2 max-sm:flex-wrap">
@@ -161,10 +98,18 @@ export default function Home() {
                 apiStatus={apiStatus}
                 databaseStatus={databaseStatus}
               />
-              <SessionPanel selectedSession={selectedSession} />
+              <SessionPanel selectedSession={workspace.selectedSession} />
             </section>
 
-            <TaskFlowPreview />
+            <ChatWorkspace
+              draft={workspace.draft}
+              events={workspace.events}
+              messages={workspace.messages}
+              onDraftChange={workspace.setDraft}
+              onSend={workspace.sendMessage}
+              selectedSession={workspace.selectedSession}
+              sending={workspace.sendingMessage}
+            />
           </div>
         </section>
       </div>

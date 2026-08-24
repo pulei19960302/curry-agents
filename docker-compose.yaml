@@ -8,6 +8,8 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
       POSTGRES_DB: ${POSTGRES_DB:-curry_agents}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
     # 负责保存容器生命周期之外的数据。容器可以删，数据卷里的数据还在
     volumes:
       - postgres_data:/var/lib/postgresql/data

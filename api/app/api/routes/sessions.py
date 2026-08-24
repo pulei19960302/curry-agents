@@ -7,10 +7,12 @@ from fastapi import APIRouter, Depends, Response
 
 from app.application.session_service import SessionService
 from app.application.unit_of_work import UnitOfWork
-from app.domain.sessions.entities import Session
+from app.domain.sessions.entities import Session, SessionMessage, SessionEvent
 from app.infrastructure.database.session import get_db_session
 from app.schemas.common import ApiResponse
-from app.schemas.session import SessionResponse, SessionCreateRequest, SessionListResponse
+from app.schemas.session import (
+    SessionResponse, SessionCreateRequest, SessionListResponse, MessageCreateRequest,
+    MessageCreateResponse, MessageResponse, SessionEventResponse, MessageListResponse, SessionEventListResponse)
 
 router = APIRouter(prefix="/sessions", tags=["sessions"])
 
@@ -32,9 +34,28 @@ def to_session_response(session: Session) -> SessionResponse:
         updated_at=session.updated_at,
     )
 
+def to_message_response(message: SessionMessage) -> MessageResponse:
+    return MessageResponse(
+        id = message.id,
+        session_id = message.session_id,
+        role = message.role.value,
+        content = message.content,
+        created_at = message.created_at
+    )
+
+
+def to_event_response(event: SessionEvent) -> SessionEventResponse:
+    return SessionEventResponse(
+        id = event.id,
+        session_id=event.session_id,
+        type = event.type.value,
+        payload = event.payload,
+        created_at= event.created_at,
+    )
+
 
 # 创建session
-@router.post("", response_model=ApiResponse[SessionResponse], tags=["sessions"])
+@router.post("", response_model=ApiResponse[SessionResponse])
 async def create_session(
     payload: SessionCreateRequest,
     service: SessionService = Depends(build_session_service),
@@ -45,7 +66,7 @@ async def create_session(
     )
 
 
-@router.get("", response_model=ApiResponse[SessionListResponse], tags=["sessions"])
+@router.get("", response_model=ApiResponse[SessionListResponse])
 async def list_sessions(
         service: SessionService = Depends(build_session_service),
 ) -> ApiResponse[SessionListResponse]:
@@ -58,10 +79,53 @@ async def list_sessions(
     )
 
 
-@router.delete("/{session_id}", status_code= HTTPStatus.NO_CONTENT.value, tags=["sessions"])
+@router.delete("/{session_id}", status_code= HTTPStatus.NO_CONTENT.value)
 async def delete_session(
         session_id: UUID,
         service: SessionService = Depends(build_session_service),
 ) -> Response:
     await service.delete_session(session_id)
     return Response(status_code=HTTPStatus.NO_CONTENT.value)
+
+
+@router.post("/{session_id}/messages", response_model=ApiResponse[MessageCreateResponse])
+async def create_message(
+        session_id: UUID,
+        payload: MessageCreateRequest,
+        service: SessionService = Depends(build_session_service),
+) -> ApiResponse[MessageCreateResponse]:
+    message, event = await service.create_user_message(session_id = session_id, content= payload.content)
+
+    return ApiResponse(
+        data=MessageCreateResponse(
+            message = to_message_response(message),
+            event = to_event_response(event)
+        )
+    )
+
+
+@router.get("/{session_id}/messages", response_model=ApiResponse[MessageListResponse])
+async def list_message(
+        session_id: UUID,
+        service: SessionService = Depends(build_session_service)
+) -> ApiResponse[MessageListResponse]:
+    result = await service.list_messages(session_id)
+
+    return ApiResponse(
+        data=MessageListResponse(
+            items=[to_message_response(message) for message in result],
+        )
+    )
+
+
+@router.get("/{session_id}/events", response_model=ApiResponse[SessionEventListResponse])
+async def list_events(
+        session_id: UUID,
+        service: SessionService = Depends(build_session_service)
+) -> ApiResponse[SessionEventListResponse]:
+    result = await service.list_events(session_id)
+    return ApiResponse(
+        data=SessionEventListResponse(
+            items=[to_event_response(event) for event in result]
+        )
+    )

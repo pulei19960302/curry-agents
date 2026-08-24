@@ -8,4 +8,4 @@ api_router = APIRouter()
 
 # 注册路由
 api_router.include_router(status.router, tags=["status"])
-api_router.include_router(sessions.router, tags=["session"])
+api_router.include_router(sessions.router)
