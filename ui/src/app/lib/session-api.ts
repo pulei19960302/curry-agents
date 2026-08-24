@@ -1,4 +1,5 @@
 import { requestApi } from "@/lib/api";
+import { readSseStream } from "./sse";
 
 import type {
   ChatMessage,
@@ -9,6 +10,8 @@ import type {
   SessionItem,
   SessionListData,
 } from "@/types/sessions";
+
+import type { StreamEvent } from "@/types/base";
 
 export function fetchSessions(): Promise<SessionItem[]> {
   return requestApi<SessionListData>(`/api/sessions`).then(
@@ -47,4 +50,25 @@ export function sendMessage(
     method: "POST",
     body: JSON.stringify({ content }),
   });
+}
+
+export async function sendMessageToStream(
+  sessionId: string,
+  content: string,
+  onEvent: (event: StreamEvent) => void,
+) {
+  const response = await fetch(`/api/sessions/${sessionId}/messages/stream`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "text/event-stream",
+    },
+    body: JSON.stringify({ content }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}`);
+  }
+
+  await readSseStream(response, onEvent);
 }
