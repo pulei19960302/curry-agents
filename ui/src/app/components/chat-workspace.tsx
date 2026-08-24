@@ -1,6 +1,7 @@
 import ChatInput from "./chat-input";
-import { EventTimeline } from "./event-timeline";
+import EventTimeline from "./event-timeline";
 import MessageTimeline from "./message-timeline";
+import SessionControlBar from "./session-control-bar";
 import type {
   ChatMessage,
   LoadState,
@@ -10,26 +11,41 @@ import type {
 
 type ChatWorkspaceProps = {
   draft: string;
+  clearingUnread: boolean;
   events: LoadState<SessionEventItem[]>;
   messages: LoadState<ChatMessage[]>;
+  onClearUnread: () => void;
   onDraftChange: (value: string) => void;
   onSend: () => void;
+  onStop: () => void;
   selectedSession: SessionItem | null;
   sending: boolean;
+  stopping: boolean;
 };
 
 export default function ChatWorkspace({
+  clearingUnread,
   draft,
   events,
   messages,
+  onClearUnread,
   onDraftChange,
   onSend,
+  onStop,
   selectedSession,
   sending,
+  stopping,
 }: ChatWorkspaceProps) {
   return (
     <section className="grid grid-cols-[1fr_280px] gap-5 max-xl:grid-cols-1">
       <div className="flex min-h-[560px] flex-col overflow-hidden rounded-md border border-slate-200 bg-slate-50">
+        <SessionControlBar
+          clearingUnread={clearingUnread}
+          onClearUnread={onClearUnread}
+          onStop={onStop}
+          selectedSession={selectedSession}
+          stopping={stopping}
+        />
         <MessageTimeline state={messages} />
         <div className="mt-auto">
           <ChatInput

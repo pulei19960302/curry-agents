@@ -72,3 +72,15 @@ export async function sendMessageToStream(
 
   await readSseStream(response, onEvent);
 }
+
+export function stopSession(sessionId: string): Promise<SessionItem> {
+  return requestApi<SessionItem>(`/api/sessions/${sessionId}/stop`, {
+    method: "POST",
+  });
+}
+
+export function clearUnread(sessionId: string): Promise<SessionItem> {
+  return requestApi<SessionItem>(`/api/sessions/${sessionId}/read`, {
+    method: "POST",
+  });
+}

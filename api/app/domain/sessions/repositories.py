@@ -3,7 +3,7 @@ from uuid import UUID
 
 from app.domain.sessions.entities import (
     Session, SessionMessage,
-    SessionEventType, SessionEvent
+    SessionEventType, SessionEvent, SessionStatus
 )
 
 
@@ -15,10 +15,19 @@ class SessionRepository(Protocol):
 
     async def list_active(self) -> list[Session]: ...
 
-    async def soft_delete(self, session_id: UUID) -> None: ...
+    async def soft_delete(self, session_id: UUID) -> bool: ...
 
     # 更新会话的 updated_at
-    async def touch(self, session_id: UUID) -> None: ...
+    async def touch(self, session_id: UUID) -> bool: ...
+
+    # 更新状态
+    async def update_status(self, session_id: UUID, status: SessionStatus) -> Session | None: ...
+
+    # 增加未读数据
+    async def increment_unread(self, session_id: UUID) -> bool: ...
+
+    # 清除未读
+    async def clear_unread(self, session_id: UUID) -> Session | None: ...
 
 
 

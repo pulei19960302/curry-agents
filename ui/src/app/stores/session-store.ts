@@ -7,6 +7,8 @@ import {
   fetchMessages,
   fetchSessions,
   sendMessageToStream,
+  stopSession,
+  clearUnread,
 } from "../lib/session-api";
 
 import type {
@@ -28,6 +30,8 @@ export type SessionState = {
   sessions: LoadState<SessionItem[]>;
   submitting: boolean;
   title: string;
+  clearingUnread: boolean;
+  stoppingSession: boolean;
 };
 
 type SessionActions = {
@@ -40,6 +44,8 @@ type SessionActions = {
   setActionError: (message: string | null) => void;
   setDraft: (draft: string) => void;
   setTitle: (title: string) => void;
+  clearUnread: () => Promise<void>;
+  stopSession: () => Promise<void>;
 };
 
 const initialDetailState = {
@@ -71,6 +77,10 @@ function toSessionEventItem(event: StreamEvent): SessionEventItem | null {
   };
 }
 
+function updateSession(items: SessionItem[], nextSession: SessionItem) {
+  return items.map((item) => (item.id === nextSession.id ? nextSession : item));
+}
+
 const useSessionStore = create<SessionState & SessionActions>((set, get) => ({
   actionError: null,
   draft: "",
@@ -81,6 +91,8 @@ const useSessionStore = create<SessionState & SessionActions>((set, get) => ({
   sessions: { type: "loading" },
   submitting: false,
   title: "",
+  clearingUnread: false,
+  stoppingSession: false,
 
   setActionError: (message: string | null) => set({ actionError: message }),
 
@@ -215,6 +227,57 @@ const useSessionStore = create<SessionState & SessionActions>((set, get) => ({
       set({ actionError: getErrorMessage(error) });
     } finally {
       set({ sendingMessage: false });
+    }
+  },
+
+  stopSession: async () => {
+    const sessionId = get().selectedSessionId;
+    if (!sessionId) {
+      set({ actionError: "请先选择一个会话" });
+      return;
+    }
+
+    set({ actionError: null, stoppingSession: true });
+    try {
+      const session = await stopSession(sessionId);
+      set((state) => ({
+        sessions:
+          state.sessions.type === "ready"
+            ? {
+                type: "ready",
+                data: updateSession(state.sessions.data, session),
+              }
+            : state.sessions,
+      }));
+    } catch (error) {
+      set({ actionError: getErrorMessage(error) });
+    } finally {
+      set({ stoppingSession: false });
+    }
+  },
+  clearUnread: async () => {
+    const sessionId = get().selectedSessionId;
+    if (!sessionId) {
+      set({ actionError: "请先选择一个会话" });
+      return;
+    }
+
+    set({ actionError: null, clearingUnread: true });
+    try {
+      const session = await clearUnread(sessionId);
+      set((state) => ({
+        sessions:
+          state.sessions.type === "ready"
+            ? {
+                type: "ready",
+                data: updateSession(state.sessions.data, session),
+              }
+            : state.sessions,
+      }));
+    } catch (error) {
+      set({ actionError: getErrorMessage(error) });
+    } finally {
+      set({ clearingUnread: false });
     }
   },
 }));

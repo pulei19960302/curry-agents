@@ -3,7 +3,7 @@ from uuid import UUID
 from app.application.unit_of_work import UnitOfWork
 from app.core.exceptions import AppException
 
-from app.domain.sessions.entities import Session, SessionMessage, SessionEvent, SessionEventType
+from app.domain.sessions.entities import Session, SessionMessage, SessionEvent, SessionEventType, SessionStatus
 
 
 class SessionService:
@@ -19,7 +19,7 @@ class SessionService:
         return session
 
 
-
+    # 创建session
     async def create_session(self, title: str) -> Session:
 
         clean_title = title.strip()
@@ -30,25 +30,29 @@ class SessionService:
         await self.uow.commit() # 事务提交
         return session
 
+
     async def list_sessions(self) -> list[Session]:
         return await self.uow.sessions.list_active()
 
 
     async def delete_session(self, session_id: UUID) -> None:
-        session = await self.uow.sessions.get(session_id)
-        if session is None:
+        deleted = await self.uow.sessions.soft_delete(session_id)
+        if not deleted:
             raise AppException(message="session not found", code=404, status_code=404)
 
-        await self.uow.sessions.soft_delete(session_id)
         await self.uow.commit()
+
 
 
     # 创建用户消息和event
     async def create_user_message(self, session_id: UUID, content: str) -> tuple[SessionMessage, SessionEvent]:
-        await self.get_session(session_id)
         clean_content = content.strip()
         if not clean_content:
             raise AppException(message="message content is required", code=400, status_code=400)
+
+        touched = await self.uow.sessions.touch(session_id)
+        if not touched:
+            raise AppException(message="session not found", code=404, status_code=404)
 
         message = await self.uow.session_messages.add_user_message(
             session_id = session_id,
@@ -64,11 +68,76 @@ class SessionService:
                 "content": message.content,
             }
         )
-        # 更新session的更新时间
+
+        # 增加未读消息
+        await self.uow.sessions.increment_unread(session_id)
+        # 更新最后更新时间
         await self.uow.sessions.touch(session_id)
         # 提交事务
         await self.uow.commit()
         return message, event
+
+
+    # update_status
+    async def mark_running(self, session_id: UUID) -> Session:
+        await self.get_session(session_id)
+        session = await self.uow.sessions.update_status(
+            session_id = session_id,
+            status = SessionStatus.running)
+
+        await self.uow.commit()
+
+        if session is None:
+            raise AppException(
+                message="session not found",
+                code=404,
+                status_code=404,
+            )
+        return session
+
+    async def mark_idle(self, session_id: UUID) -> Session:
+        await self.get_session(session_id)
+        session = await self.uow.sessions.update_status(
+            session_id=session_id,
+            status=SessionStatus.idle
+        )
+        await self.uow.commit()
+        if session is None:
+            raise AppException(
+                message="session not found",
+                code=404,
+                status_code=404,
+            )
+        return session
+
+    async def stop_session(self, session_id: UUID) -> Session:
+        await self.get_session(session_id)
+        session = await self.uow.sessions.update_status(
+            session_id=session_id,
+            status=SessionStatus.stopped
+        )
+        await self.uow.commit()
+        if session is None:
+            raise AppException(
+                message="session not found",
+                code=404,
+                status_code=404,
+            )
+        return session
+
+    async def clear_unread(self, session_id: UUID) -> Session:
+        await self.get_session(session_id)
+        session = await self.uow.sessions.clear_unread(session_id)
+        await self.uow.commit()
+        if session is None:
+            raise AppException(
+                message="session not found",
+                code=404,
+                status_code=404,
+            )
+        return session
+
+
 
 
     # 根据session id查询message list集合
@@ -79,3 +148,5 @@ class SessionService:
     # 根据session id 查询event list 集合
     async def list_events(self, session_id: UUID) -> list[SessionEvent]:
         return await self.uow.session_event.list_by_session(session_id)
+
+

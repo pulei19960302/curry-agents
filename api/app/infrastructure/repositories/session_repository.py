@@ -1,8 +1,10 @@
-from datetime import UTC, datetime
+from datetime import datetime
+from typing import TypedDict, Unpack
 from uuid import UUID
 
-from sqlalchemy import Select, select
+from sqlalchemy import Select, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.sql.elements import ColumnElement
 
 from app.domain.sessions.entities import (Session, SessionStatus,
                                           SessionMessage, MessageRole,
@@ -12,10 +14,17 @@ from app.infrastructure.database.models import SessionMessageModel, SessionEvent
 from app.infrastructure.database.models.session import SessionModel
 
 
+class _SessionUpdateValues(TypedDict, total=False):
+    status: str
+    unread_count: int | ColumnElement[int]
+    updated_at: datetime | ColumnElement[datetime]
+    deleted_at: datetime | ColumnElement[datetime]
+
+
 class SqlAlchemySessionRepository(SessionRepository):
 
     def __init__(self, db_session: AsyncSession) -> None:
-        self.session = db_session
+        self.db_session = db_session
 
 
     # 新增session 会话
@@ -25,10 +34,10 @@ class SqlAlchemySessionRepository(SessionRepository):
             status=SessionStatus.idle.value,
             unread_count= 0
         )
-        self.session.add(model)
+        self.db_session.add(model)
         # flush() 会把新增对象发送到数据库，但不提交事务。
-        await self.session.flush()
-        await self.session.refresh(model)
+        await self.db_session.flush()
+        await self.db_session.refresh(model)
 
         return model.to_entity()
 
@@ -37,37 +46,80 @@ class SqlAlchemySessionRepository(SessionRepository):
     # 根据session id 查询
     async def get(self, session_id: UUID) -> Session | None:
         stmt = self._active_stmt().where(SessionModel.id == session_id)
-        result = await self.session.execute(stmt)
+        result = await self.db_session.execute(stmt)
         model = result.scalar_one_or_none()
         return model.to_entity() if model else None
 
     # 获取所有的session
     async def list_active(self) -> list[Session]:
         stmt = self._active_stmt().order_by(SessionModel.updated_at.desc())
-        result = await self.session.execute(stmt)
+        result = await self.db_session.execute(stmt)
         return [model.to_entity() for model in result.scalars()]
 
     # 根据id 删除某一个
-    async def soft_delete(self, session_id: UUID) -> None :
-        stmt = self._active_stmt().where(SessionModel.id == session_id)
-        result = await self.session.execute(stmt)
-        model = result.scalar_one_or_none()
-        if model is not None:
-            model.deleted_at = datetime.now(UTC)
+    async def soft_delete(self, session_id: UUID) -> bool:
+        model = await self._update_active(session_id, deleted_at=func.now())
+        return model is not None
 
 
     # 根据id更新
-    async def touch(self, session_id: UUID) -> None:
-        stmt = self._active_stmt().where(SessionModel.id == session_id)
-        result = await self.session.execute(stmt)
-        model = result.scalar_one_or_none()
-        if model is not None:
-            model.updated_at = datetime.now(UTC)
+    async def touch(self, session_id: UUID) -> bool:
+        model = await self._update_active(session_id, updated_at=func.now())
+        return model is not None
+
+    # 更新状态
+    async def update_status(self, session_id: UUID, status: SessionStatus) -> Session | None:
+        model = await self._update_active(
+            session_id,
+            status=status.value,
+            updated_at=func.now(),
+        )
+        if model is None:
+            return None
+        return model.to_entity()
+
+    # 原子增加未读数，避免先查询再写回造成并发更新丢失。
+    async def increment_unread(self, session_id: UUID) -> bool:
+        model = await self._update_active(
+            session_id,
+            unread_count=SessionModel.unread_count + 1,
+            updated_at=func.now(),
+        )
+        return model is not None
+
+    async def clear_unread(self, session_id: UUID) -> Session | None:
+        model = await self._update_active(
+            session_id,
+            unread_count=0,
+            updated_at=func.now(),
+        )
+        return model.to_entity() if model is not None else None
 
 
     @staticmethod
     def _active_stmt() -> Select[tuple[SessionModel]]:
         return select(SessionModel).where(SessionModel.deleted_at.is_(None))
+
+
+
+    # SQLAlchemy 官方说明，ORM UPDATE ... RETURNING 可以直接返回更新后的 ORM 对象；
+    # 在支持 RETURNING 的 PostgreSQL 上，默认 session 同步策略也会使用返回值同步对象状态
+    async def _update_active(
+        self,
+        session_id: UUID,
+        **values: Unpack[_SessionUpdateValues],
+    ) -> SessionModel | None:
+        stmt = (
+            update(SessionModel)
+            .where(
+                SessionModel.id == session_id,
+                SessionModel.deleted_at.is_(None),
+            )
+            .values(**values)
+            .returning(SessionModel)
+        )
+        result = await self.db_session.execute(stmt)
+        return result.scalar_one_or_none()
 
 
 

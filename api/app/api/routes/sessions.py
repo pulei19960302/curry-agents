@@ -143,15 +143,30 @@ async def stream_create_message(
         service: SessionService = Depends(build_session_service)
 ) -> StreamingResponse:
 
+    # 变成运行状态
+    running_session = await service.mark_running(session_id)
+
+    # 创建用户消息
     message, event = await service.create_user_message(
         session_id=session_id,
         content=payload.content,
     )
+
+    #变成闲置状态
+    idle_session = await service.mark_idle(session_id)
+
+    # 模型转换
+    running_data = to_session_response(running_session).model_dump(mode="json")
     message_data = to_message_response(message).model_dump(mode="json")
     event_data = to_event_response(event).model_dump(mode="json")
+    idle_data = to_session_response(idle_session).model_dump(mode="json")
 
     async def event_stream():
+        yield encode_sse("session_status", running_data)
+        await sleep(0.2)
         yield encode_sse("message_created", event_data)
+        await sleep(0.2)
+        yield encode_sse("session_status", idle_data)
         await sleep(0.2)
         yield encode_sse(
             "stream_done",
@@ -160,6 +175,7 @@ async def stream_create_message(
                 "message": message_data,
             },
         )
+
 
     return StreamingResponse(
         event_stream(),
@@ -170,3 +186,22 @@ async def stream_create_message(
             "X-Accel-Buffering": "no",
         },
     )
+
+
+@router.post("/{session_id}/stop", response_model=ApiResponse[SessionResponse])
+async def stop_session(
+        session_id: UUID,
+        service: SessionService = Depends(build_session_service),
+) -> ApiResponse[SessionResponse]:
+    session = await service.stop_session(session_id)
+    return ApiResponse(data=to_session_response(session))
+
+
+# 未读数量变成0
+@router.post("/{session_id}/read", response_model=ApiResponse[SessionResponse])
+async def clear_unread(
+    session_id: UUID,
+    service: SessionService = Depends(build_session_service),
+) -> ApiResponse[SessionResponse]:
+    session = await service.clear_unread(session_id)
+    return ApiResponse(data=to_session_response(session))

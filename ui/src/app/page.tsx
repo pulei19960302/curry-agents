@@ -105,10 +105,14 @@ export default function Home() {
               draft={workspace.draft}
               events={workspace.events}
               messages={workspace.messages}
+              onClearUnread={workspace.clearUnread}
               onDraftChange={workspace.setDraft}
               onSend={workspace.sendMessage}
+              onStop={workspace.stopSession}
               selectedSession={workspace.selectedSession}
               sending={workspace.sendingMessage}
+              stopping={workspace.stoppingSession}
+              clearingUnread={workspace.clearingUnread}
             />
           </div>
         </section>

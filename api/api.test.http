@@ -32,6 +32,15 @@ Accept: application/json
   "content": "帮我规划一个 AI Agent 学习任务"
 }
 
+### 流式创建消息
+POST {{baseUrl}}/sessions/{{sessionId}}/messages/stream
+Content-Type: application/json
+Accept: text/event-stream
+
+{
+  "content": "帮我规划一个 AI Agent 学习任务"
+}
+
 ### 查询指定 Session 的消息列表
 GET {{baseUrl}}/sessions/{{sessionId}}/messages
 Accept: application/json

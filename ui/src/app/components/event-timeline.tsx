@@ -3,7 +3,7 @@ import { Activity } from "lucide-react";
 import { formatDate } from "@/lib/format";
 import type { LoadState, SessionEventItem } from "@/types/sessions";
 
-export function EventTimeline({
+export default function EventTimeline({
   state,
 }: {
   state: LoadState<SessionEventItem[]>;
