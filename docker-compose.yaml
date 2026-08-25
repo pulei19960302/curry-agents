@@ -59,12 +59,17 @@ services:
       API_VERSION: ${API_VERSION:-0.1.0}
       API_PREFIX: ${API_PREFIX:-/api}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      # 跨域的
       CORS_ALLOW_ORIGINS: ${CORS_ALLOW_ORIGINS:-["http://localhost:3000","http://127.0.0.1:3000"]}
       CORS_ALLOW_CREDENTIALS: ${CORS_ALLOW_CREDENTIALS:-true}
       CORS_ALLOW_METHODS: ${CORS_ALLOW_METHODS:-["*"]}
       CORS_ALLOW_HEADERS: ${CORS_ALLOW_HEADERS:-["*"]}
+      # 数据库相关
       DATABASE_URL: ${DATABASE_URL:-postgresql+asyncpg://postgres:postgres@postgres:5432/curry_agents}
       DATABASE_ECHO: ${DATABASE_ECHO:-false}
+      # 上传服务相关
+      UPLOAD_DIR: ${UPLOAD_DIR:-/app/uploads}
+      MAX_UPLOAD_SIZE: ${MAX_UPLOAD_SIZE:-10485760}
     ports:
       - "${API_PORT:-8000}:8000"
     networks:
@@ -110,10 +115,11 @@ services:
       - ui
 
 
-
+# 这里使用 Docker Volume 保存上传文件。容器重建后，/app/uploads 里的内容不会因为新容器启动就丢失。
 volumes:
   postgres_data:
   redis_data:
+  api_uploads:
 
 networks:
   curry-network:

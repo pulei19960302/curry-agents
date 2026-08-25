@@ -1,3 +1,6 @@
+import { UploadedFile } from "@/types/files";
+import AttachmentList from "./attachment-list";
+import AttachmentUpload from "./attachment-upload";
 import ChatInput from "./chat-input";
 import EventTimeline from "./event-timeline";
 import MessageTimeline from "./message-timeline";
@@ -18,6 +21,9 @@ type ChatWorkspaceProps = {
   onDraftChange: (value: string) => void;
   onSend: () => void;
   onStop: () => void;
+  onUploadFile: (file: File) => Promise<void>;
+  uploadingFile: boolean;
+  attachments: UploadedFile[];
   selectedSession: SessionItem | null;
   sending: boolean;
   stopping: boolean;
@@ -35,6 +41,9 @@ export default function ChatWorkspace({
   selectedSession,
   sending,
   stopping,
+  onUploadFile,
+  attachments,
+  uploadingFile,
 }: ChatWorkspaceProps) {
   return (
     <section className="grid grid-cols-[1fr_280px] gap-5 max-xl:grid-cols-1">
@@ -47,6 +56,14 @@ export default function ChatWorkspace({
           stopping={stopping}
         />
         <MessageTimeline state={messages} />
+        <div className="space-y-3 border-t border-slate-200 bg-slate-50 p-4">
+          <AttachmentUpload
+            disabled={!selectedSession}
+            onUpload={onUploadFile}
+            uploading={uploadingFile}
+          />
+          <AttachmentList files={attachments} />
+        </div>
         <div className="mt-auto">
           <ChatInput
             disabled={!selectedSession}

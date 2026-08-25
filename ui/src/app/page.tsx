@@ -113,6 +113,9 @@ export default function Home() {
               sending={workspace.sendingMessage}
               stopping={workspace.stoppingSession}
               clearingUnread={workspace.clearingUnread}
+              attachments={workspace.attachments}
+              onUploadFile={workspace.uploadAttachment}
+              uploadingFile={workspace.uploadingFile}
             />
           </div>
         </section>

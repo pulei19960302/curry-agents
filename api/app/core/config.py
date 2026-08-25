@@ -33,6 +33,11 @@ class Settings(BaseSettings):
 
     database_echo: bool = True
 
+    # 上传文件配置
+    upload_dir: str = "uploads"
+    # 最大10m
+    upload_max_size: int = 10 * 1024 * 1024
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

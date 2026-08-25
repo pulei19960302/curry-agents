@@ -18,6 +18,8 @@ import type {
   SessionItem,
 } from "@/types/sessions";
 import { StreamEvent } from "@/types/base";
+import { UploadedFile } from "@/types/files";
+import { uploadFile } from "@/lib/files-api";
 
 //
 export type SessionState = {
@@ -32,6 +34,8 @@ export type SessionState = {
   title: string;
   clearingUnread: boolean;
   stoppingSession: boolean;
+  attachments: UploadedFile[];
+  uploadingFile: boolean;
 };
 
 type SessionActions = {
@@ -46,6 +50,7 @@ type SessionActions = {
   setTitle: (title: string) => void;
   clearUnread: () => Promise<void>;
   stopSession: () => Promise<void>;
+  uploadAttachment: (file: File) => Promise<void>;
 };
 
 const initialDetailState = {
@@ -93,6 +98,8 @@ const useSessionStore = create<SessionState & SessionActions>((set, get) => ({
   title: "",
   clearingUnread: false,
   stoppingSession: false,
+  attachments: [],
+  uploadingFile: false,
 
   setActionError: (message: string | null) => set({ actionError: message }),
 
@@ -278,6 +285,25 @@ const useSessionStore = create<SessionState & SessionActions>((set, get) => ({
       set({ actionError: getErrorMessage(error) });
     } finally {
       set({ clearingUnread: false });
+    }
+  },
+
+  uploadAttachment: async (file: File) => {
+    if (!get().selectedSessionId) {
+      set({ actionError: "请先选择一个会话" });
+      return;
+    }
+
+    set({ actionError: null, uploadingFile: true });
+    try {
+      const uploaded = await uploadFile(file);
+      set((state) => ({
+        attachments: [uploaded, ...state.attachments],
+      }));
+    } catch (error) {
+      set({ actionError: getErrorMessage(error) });
+    } finally {
+      set({ uploadingFile: false });
     }
   },
 }));
