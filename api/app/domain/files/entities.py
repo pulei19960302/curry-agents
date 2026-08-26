@@ -25,3 +25,14 @@ class FileObject:
 
     # 创建时间
     created_at: datetime
+
+
+@dataclass(slots=True)
+class SessionFile:
+    id: UUID
+
+    session_id: UUID
+
+    file: FileObject
+
+    created_at: datetime

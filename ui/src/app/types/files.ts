@@ -7,3 +7,9 @@ export type UploadedFile = {
   created_at: string;
 };
 
+// 预览
+export type FilePreviewData = {
+  file: UploadedFile;
+  content: string;
+  truncated: boolean;
+};

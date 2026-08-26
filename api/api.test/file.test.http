@@ -1,0 +1,8 @@
+@baseUrl = http://localhost:8000/api
+
+### GET request to example server
+GET https://examples.http-client.intellij.net/get
+    ?generated-in=PyCharm
+
+###
+GET {{baseUrl}}/files/18bf1beb-043d-4950-8691-230de1bf6498/download

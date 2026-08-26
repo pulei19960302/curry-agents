@@ -1,4 +1,4 @@
-import type { UploadedFile } from "@/types/files";
+import type { UploadedFile, FilePreviewData } from "@/types/files";
 import type { ApiResponse } from "@/types/api";
 
 export async function uploadFile(file: File): Promise<UploadedFile> {
@@ -27,4 +27,10 @@ export async function uploadFile(file: File): Promise<UploadedFile> {
 
 export function getDownloadUrl(file: UploadedFile): string {
   return file.download_url;
+}
+
+import { requestApi } from "./api";
+
+export function fetchFilePreview(fileId: string): Promise<FilePreviewData> {
+  return requestApi<FilePreviewData>(`/api/files/${fileId}/preview`);
 }

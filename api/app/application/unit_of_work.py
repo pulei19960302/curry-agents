@@ -10,8 +10,9 @@ from app.infrastructure.repositories.session_repository import (
     SqlAlchemySessionMessageRepository
 )
 
-from app.infrastructure.repositories.file_repository import SqlAlchemyFileRepository
-from app.domain.files.repositories import FileRepository
+from app.infrastructure.repositories.file_repository import SqlAlchemyFileRepository, SqlAlchemySessionFileRepository
+from app.domain.files.repositories import FileRepository, SessionFileRepository
+
 
 class UnitOfWork:
     """在同一个数据库会话中组织仓储操作和事务边界。"""
@@ -22,6 +23,7 @@ class UnitOfWork:
         self.session_messages: SessionMessageRepository = SqlAlchemySessionMessageRepository(db_session)
         self.session_event: SessionEventRepository = SqlAlchemySessionEventRepository(db_session)
         self.files: FileRepository = SqlAlchemyFileRepository(db_session)
+        self.session_files: SessionFileRepository = SqlAlchemySessionFileRepository(db_session)
 
     async def __aenter__(self) -> Self:
         return self

@@ -38,6 +38,9 @@ class Settings(BaseSettings):
     # 最大10m
     upload_max_size: int = 10 * 1024 * 1024
 
+    # 预览最大
+    file_preview_max_size: int = 64 * 1024
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

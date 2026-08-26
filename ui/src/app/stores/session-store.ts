@@ -9,6 +9,8 @@ import {
   sendMessageToStream,
   stopSession,
   clearUnread,
+  fetchSessionFiles,
+  uploadSessionFile,
 } from "../lib/session-api";
 
 import type {
@@ -16,10 +18,11 @@ import type {
   SessionEventItem,
   ChatMessage,
   SessionItem,
+  SessionFileItem,
 } from "@/types/sessions";
 import { StreamEvent } from "@/types/base";
-import { UploadedFile } from "@/types/files";
-import { uploadFile } from "@/lib/files-api";
+import { FilePreviewData, UploadedFile } from "@/types/files";
+import { fetchFilePreview, uploadFile } from "@/lib/files-api";
 
 //
 export type SessionState = {
@@ -34,8 +37,11 @@ export type SessionState = {
   title: string;
   clearingUnread: boolean;
   stoppingSession: boolean;
-  attachments: UploadedFile[];
+  attachments: SessionFileItem[];
   uploadingFile: boolean;
+  files: LoadState<SessionFileItem[]>;
+  filePreview: LoadState<FilePreviewData | null>;
+  selectedFile: SessionFileItem | null;
 };
 
 type SessionActions = {
@@ -51,11 +57,18 @@ type SessionActions = {
   clearUnread: () => Promise<void>;
   stopSession: () => Promise<void>;
   uploadAttachment: (file: File) => Promise<void>;
+  loadFilePreview: (fileId: string) => Promise<void>;
+  selectFile: (file: SessionFileItem | null) => void;
 };
 
 const initialDetailState = {
   messages: { type: "ready", data: [] } as LoadState<ChatMessage[]>,
   events: { type: "ready", data: [] } as LoadState<SessionEventItem[]>,
+  files: { type: "ready", data: [] } as LoadState<SessionFileItem[]>,
+  filePreview: {
+    type: "ready",
+    data: null,
+  } as LoadState<FilePreviewData | null>,
 };
 
 function getErrorMessage(error: unknown) {
@@ -100,6 +113,9 @@ const useSessionStore = create<SessionState & SessionActions>((set, get) => ({
   stoppingSession: false,
   attachments: [],
   uploadingFile: false,
+  files: initialDetailState.files,
+  filePreview: initialDetailState.filePreview,
+  selectedFile: null,
 
   setActionError: (message: string | null) => set({ actionError: message }),
 
@@ -139,18 +155,23 @@ const useSessionStore = create<SessionState & SessionActions>((set, get) => ({
     }
   },
 
-  loadSessionDetail: async (sessionId: string) => {
+  loadSessionDetail: async (sessionId) => {
     set({
       events: { type: "loading" },
+      files: { type: "loading" },
+      filePreview: { type: "ready", data: null },
       messages: { type: "loading" },
+      selectedFile: null,
     });
     try {
-      const [messages, events] = await Promise.all([
+      const [messages, events, files] = await Promise.all([
         fetchMessages(sessionId),
         fetchEvents(sessionId),
+        fetchSessionFiles(sessionId),
       ]);
       set({
         events: { type: "ready", data: events },
+        files: { type: "ready", data: files },
         messages: { type: "ready", data: messages },
       });
     } catch (error) {
@@ -158,6 +179,7 @@ const useSessionStore = create<SessionState & SessionActions>((set, get) => ({
       set({
         actionError: message,
         events: { type: "error", message },
+        files: { type: "error", message },
         messages: { type: "error", message },
       });
     }
@@ -296,14 +318,42 @@ const useSessionStore = create<SessionState & SessionActions>((set, get) => ({
 
     set({ actionError: null, uploadingFile: true });
     try {
-      const uploaded = await uploadFile(file);
+      const uploaded = await uploadSessionFile(get().selectedSessionId!, file);
       set((state) => ({
         attachments: [uploaded, ...state.attachments],
+        files:
+          state.files.type === "ready"
+            ? {
+                type: "ready",
+                data: [uploaded, ...state.files.data],
+              }
+            : state.files,
       }));
     } catch (error) {
       set({ actionError: getErrorMessage(error) });
     } finally {
       set({ uploadingFile: false });
+    }
+  },
+
+  selectFile: (file) => {
+    set({
+      filePreview: { type: "ready", data: null },
+      selectedFile: file,
+    });
+  },
+
+  loadFilePreview: async (fileId) => {
+    set({ actionError: null, filePreview: { type: "loading" } });
+    try {
+      const preview = await fetchFilePreview(fileId);
+      set({ filePreview: { type: "ready", data: preview } });
+    } catch (error) {
+      const message = getErrorMessage(error);
+      set({
+        actionError: message,
+        filePreview: { type: "error", message },
+      });
     }
   },
 }));

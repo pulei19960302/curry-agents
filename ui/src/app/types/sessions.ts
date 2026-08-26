@@ -1,4 +1,5 @@
 import type { LucideIcon } from "lucide-react";
+import { UploadedFile } from "./files";
 
 export type SessionItem = {
   id: string;
@@ -52,4 +53,17 @@ export type SessionEventListData = {
 
 export type MessageCreateData = {
   content: string;
+};
+
+// session 对象里面的file
+export type SessionFileItem = {
+  id: string;
+  session_id: string;
+  file_id: string;
+  file: UploadedFile;
+  created_at: string;
+};
+
+export type SessionFileListData = {
+  items: SessionFileItem[];
 };

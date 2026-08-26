@@ -11,3 +11,20 @@ class FileResponse(BaseModel):
     size: int
     download_url: str
     created_at: datetime
+
+
+class SessionFileResponse(BaseModel):
+    id: UUID
+    session_id: UUID
+    file: FileResponse
+    created_at: datetime
+
+
+class SessionFileListResponse(BaseModel):
+    items: list[SessionFileResponse]
+
+
+class FilePreviewResponse(BaseModel):
+    file: FileResponse
+    content: str
+    truncated: bool

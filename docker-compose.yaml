@@ -70,8 +70,13 @@ services:
       # 上传服务相关
       UPLOAD_DIR: ${UPLOAD_DIR:-/app/uploads}
       MAX_UPLOAD_SIZE: ${MAX_UPLOAD_SIZE:-10485760}
+
+      # 预览
+      FILE_PREVIEW_MAX_SIZE: ${FILE_PREVIEW_MAX_SIZE:-65536}
     ports:
       - "${API_PORT:-8000}:8000"
+    volumes:
+      - api_uploads:/app/uploads
     networks:
       - curry-network
     healthcheck:

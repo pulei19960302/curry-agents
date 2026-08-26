@@ -102,19 +102,24 @@ export default function Home() {
             </section>
 
             <ChatWorkspace
+              attachments={workspace.attachments}
+              clearingUnread={workspace.clearingUnread}
               draft={workspace.draft}
               events={workspace.events}
+              files={workspace.files}
+              filePreview={workspace.filePreview}
               messages={workspace.messages}
               onClearUnread={workspace.clearUnread}
               onDraftChange={workspace.setDraft}
+              onPreviewFile={workspace.loadFilePreview}
               onSend={workspace.sendMessage}
+              onSelectFile={workspace.selectFile}
               onStop={workspace.stopSession}
+              onUploadFile={workspace.uploadAttachment}
+              selectedFile={workspace.selectedFile}
               selectedSession={workspace.selectedSession}
               sending={workspace.sendingMessage}
               stopping={workspace.stoppingSession}
-              clearingUnread={workspace.clearingUnread}
-              attachments={workspace.attachments}
-              onUploadFile={workspace.uploadAttachment}
               uploadingFile={workspace.uploadingFile}
             />
           </div>

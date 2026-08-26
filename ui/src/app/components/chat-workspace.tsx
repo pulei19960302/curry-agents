@@ -1,4 +1,3 @@
-import { UploadedFile } from "@/types/files";
 import AttachmentList from "./attachment-list";
 import AttachmentUpload from "./attachment-upload";
 import ChatInput from "./chat-input";
@@ -9,40 +8,54 @@ import type {
   ChatMessage,
   LoadState,
   SessionEventItem,
+  SessionFileItem,
   SessionItem,
 } from "@/types/sessions";
 
+import type { FilePreviewData } from "@/types/files";
+import { SessionFilePanel } from "./session-file-panel";
+
 type ChatWorkspaceProps = {
+  attachments: SessionFileItem[];
   draft: string;
   clearingUnread: boolean;
   events: LoadState<SessionEventItem[]>;
+  files: LoadState<SessionFileItem[]>;
+  filePreview: LoadState<FilePreviewData | null>;
   messages: LoadState<ChatMessage[]>;
   onClearUnread: () => void;
   onDraftChange: (value: string) => void;
+  onPreviewFile: (fileId: string) => void;
   onSend: () => void;
+  onSelectFile: (file: SessionFileItem) => void;
   onStop: () => void;
-  onUploadFile: (file: File) => Promise<void>;
-  uploadingFile: boolean;
-  attachments: UploadedFile[];
+  onUploadFile: (file: File) => void;
+  selectedFile: SessionFileItem | null;
   selectedSession: SessionItem | null;
   sending: boolean;
   stopping: boolean;
+  uploadingFile: boolean;
 };
 
 export default function ChatWorkspace({
+  attachments,
   clearingUnread,
   draft,
   events,
+  files,
+  filePreview,
   messages,
   onClearUnread,
   onDraftChange,
+  onPreviewFile,
   onSend,
+  onSelectFile,
   onStop,
+  onUploadFile,
+  selectedFile,
   selectedSession,
   sending,
   stopping,
-  onUploadFile,
-  attachments,
   uploadingFile,
 }: ChatWorkspaceProps) {
   return (
@@ -62,7 +75,7 @@ export default function ChatWorkspace({
             onUpload={onUploadFile}
             uploading={uploadingFile}
           />
-          <AttachmentList files={attachments} />
+          <AttachmentList files={attachments.map((item) => item.file)} />
         </div>
         <div className="mt-auto">
           <ChatInput
@@ -75,11 +88,20 @@ export default function ChatWorkspace({
         </div>
       </div>
 
-      <aside className="rounded-md border border-slate-200 bg-white p-5">
-        <h2 className="text-base font-semibold text-slate-950">事件记录</h2>
-        <p className="mt-1 text-sm text-slate-500">本章先展示消息创建事件</p>
-        <div className="mt-4">
-          <EventTimeline state={events} />
+      <aside className="space-y-5">
+        <SessionFilePanel
+          files={files}
+          onPreview={onPreviewFile}
+          onSelectFile={onSelectFile}
+          preview={filePreview}
+          selectedFile={selectedFile}
+        />
+        <div className="rounded-md border border-slate-200 bg-white p-5">
+          <h2 className="text-base font-semibold text-slate-950">事件记录</h2>
+          <p className="mt-1 text-sm text-slate-500">本章先展示消息创建事件</p>
+          <div className="mt-4">
+            <EventTimeline state={events} />
+          </div>
         </div>
       </aside>
     </section>
