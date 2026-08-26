@@ -1,10 +1,12 @@
 from pathlib import Path
-from uuid import uuid4, UUID
+from uuid import UUID
 
 from app.application.unit_of_work import UnitOfWork
 from app.core.config import settings
 from app.core.exceptions import AppException
 from app.domain.files.entities import FileObject, SessionFile
+from app.domain.files.storage import FileStorage, StoredFile
+from app.infrastructure.storage.factory import build_file_storage
 
 TEXT_PREVIEW_TYPES = {
     "application/json",
@@ -16,9 +18,10 @@ TEXT_PREVIEW_TYPES = {
 
 class FileService:
 
-    def __init__(self, uow: UnitOfWork) -> None:
+    def __init__(self, uow: UnitOfWork, storage: FileStorage | None = None) -> None:
         self.uow = uow
-        self.upload_root = Path(settings.upload_dir)
+        # 有就用没有就用构建的
+        self.storage = storage or build_file_storage()
 
     async def save_upload(
             self,
@@ -26,37 +29,18 @@ class FileService:
             content_type: str | None,
             content: bytes
     ) -> FileObject:
+
         clean_name = self._clean_filename(original_name)
-        if not clean_name:
-            raise AppException(
-                message="files name is required",
-                code=400,
-                status_code=400,
-            )
-        if not content:
-            raise AppException(
-                message="files content is required",
-                code=400,
-                status_code=400,
-            )
-
-        if len(content) > settings.upload_max_size:
-            raise AppException(
-                message="files is too large",
-                code=413,
-                status_code=413,
-            )
-
-        stored_name = self._build_stored_name(clean_name)
-        storage_path = self.upload_root / stored_name
-        self.upload_root.mkdir(parents=True, exist_ok=True)
-        storage_path.write_bytes(content)
+        stored_file = self._write_upload_file(
+            clean_name=clean_name,
+            content=content,
+        )
 
         try:
             file_object = await self.uow.files.add(
-                original_name=original_name,
-                storage_path=str(storage_path),
-                stored_name=stored_name,
+                original_name=clean_name,
+                storage_path=stored_file.storage_path,
+                stored_name=stored_file.storage_name,
                 content_type=content_type or "application/octet-stream",
                 size=len(content),
             )
@@ -64,12 +48,13 @@ class FileService:
 
         except Exception:
             # 元数据写入失败时清理已落盘文件，避免出现没有数据库记录的孤立文件。
-            storage_path.unlink(missing_ok=True)
+            self.storage.delete(stored_file.storage_path)
             await self.uow.rollback()
             raise
 
         return file_object
 
+    # 获取文件
     async def get_file(self, file_id: UUID) -> FileObject:
         file_object = await self.uow.files.get(file_id)
         if file_object is None:
@@ -82,13 +67,14 @@ class FileService:
 
     async def get_download_path(self, file_id: UUID) -> tuple[FileObject, Path]:
         file_object = await self.get_file(file_id)
-        path = Path(file_object.storage_path)
-        if not path.is_file():
+        # 判断文件存在不
+        if not self.storage.exists(file_object.storage_path):
             raise AppException(
-                message="files content not found",
+                message="file content not found",
                 code=404,
                 status_code=404,
             )
+        path = self.storage.get_local_path(file_object.storage_path)
         return file_object, path
 
     # 上传文件并绑定会话
@@ -100,7 +86,6 @@ class FileService:
             content: bytes
     ) -> SessionFile:
         session = await self.uow.sessions.get(session_id)
-
         if session is None:
             raise AppException(
                 message="session not found",
@@ -109,19 +94,18 @@ class FileService:
             )
 
         clean_name = self._clean_filename(original_name)
-        stored_name = self._build_stored_name(clean_name)
-        storage_path = self.upload_root / stored_name
-
-        self.upload_root.mkdir(parents=True, exist_ok=True)
-        storage_path.write_bytes(content)
+        stored_file = self._write_upload_file(
+            clean_name=clean_name,
+            content=content,
+        )
 
         try:
             file_object = await self.uow.files.add(
                 original_name=clean_name,
-                stored_name=stored_name,
+                stored_name=stored_file.storage_name,
                 content_type=content_type or "application/octet-stream",
                 size=len(content),
-                storage_path=str(storage_path),
+                storage_path=stored_file.storage_path,
             )
             session_file = await self.uow.session_files.add(
                 session_id=session_id,
@@ -131,7 +115,7 @@ class FileService:
             await self.uow.commit()
         except Exception:
             # 会话归属写入失败时也要清理文件，避免页面永远找不到这份上传内容。
-            storage_path.unlink(missing_ok=True)
+            self.storage.delete(stored_file.storage_path)
             await self.uow.rollback()
             raise
         return session_file
@@ -147,9 +131,13 @@ class FileService:
             )
 
         # 预览只读取有限字节，避免把大文件一次性塞进接口响应。
-        content = path.read_bytes()
-        truncated = len(content) > settings.file_preview_max_size
-        preview_bytes = content[: settings.file_preview_max_size]
+        preview_bytes = self.storage.read_bytes(
+            file_object.storage_path,
+            max_size=settings.file_preview_max_size + 1,
+        )
+        truncated = len(preview_bytes) > settings.file_preview_max_size
+        preview_bytes = preview_bytes[: settings.file_preview_max_size]
+
         return file_object, preview_bytes.decode("utf-8", errors="replace"), truncated
 
     # list session file
@@ -169,11 +157,6 @@ class FileService:
         return Path(filename).name.strip()
 
     @staticmethod
-    def _build_stored_name(filename: str) -> str:
-        suffix = Path(filename).suffix
-        return f"{uuid4().hex}{suffix}"
-
-    @staticmethod
     def _is_text_preview_supported(file_object: FileObject) -> bool:
         content_type = file_object.content_type.split(";")[0].lower()
         if content_type.startswith("text/") or content_type in TEXT_PREVIEW_TYPES:
@@ -188,3 +171,25 @@ class FileService:
             ".yaml",
             ".yml",
         }
+
+    def _write_upload_file(self, clean_name: str, content: bytes) -> StoredFile:
+        if not clean_name:
+            raise AppException(
+                message="file name is required",
+                code=400,
+                status_code=400,
+            )
+        if not content:
+            raise AppException(
+                message="file content is required",
+                code=400,
+                status_code=400,
+            )
+        if len(content) > settings.upload_max_size:
+            raise AppException(
+                message="file is too large",
+                code=413,
+                status_code=413,
+            )
+
+        return self.storage.save(clean_name, content)

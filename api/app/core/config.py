@@ -47,6 +47,9 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
+    # 上传文件配置
+    file_storage_backend: str = "local"
+
 
 @lru_cache
 def get_settings() -> Settings:

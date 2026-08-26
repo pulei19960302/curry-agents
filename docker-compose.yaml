@@ -42,7 +42,7 @@ services:
     networks:
       - curry-network
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: [ "CMD", "redis-cli", "ping" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -73,6 +73,9 @@ services:
 
       # 预览
       FILE_PREVIEW_MAX_SIZE: ${FILE_PREVIEW_MAX_SIZE:-65536}
+      # 文件上传保存位置
+      FILE_STORAGE_BACKEND: ${FILE_STORAGE_BACKEND:-local}
+
     ports:
       - "${API_PORT:-8000}:8000"
     volumes:
