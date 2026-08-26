@@ -76,6 +76,10 @@ services:
       # 文件上传保存位置
       FILE_STORAGE_BACKEND: ${FILE_STORAGE_BACKEND:-local}
 
+      # LLM相关
+      LLM_CONFIG_PATH: ${LLM_CONFIG_PATH:-config/llm.yaml}
+      LLM_API_KEY: ${LLM_API_KEY:-}
+
     ports:
       - "${API_PORT:-8000}:8000"
     volumes:

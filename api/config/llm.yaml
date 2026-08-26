@@ -1,0 +1,16 @@
+llm:
+  default_provider: deepseek
+  default_model: deepseek-chat
+  temperature: 0.2
+  max_tokens: 1024
+
+providers:
+  openai_compatible:
+    base_url: https://api.openai.com/v1
+    api_key_env: LLM_API_KEY
+    timeout_seconds: 60
+
+  deepseek:
+    base_url: https://api.deepseek.com
+    api_key_env: LLM_API_KEY
+    timeout_seconds: 60

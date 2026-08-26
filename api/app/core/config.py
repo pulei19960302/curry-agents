@@ -50,6 +50,9 @@ class Settings(BaseSettings):
     # 上传文件配置
     file_storage_backend: str = "local"
 
+    # llm 配置
+    llm_config_path: str = "config/llm.yaml"
+
 
 @lru_cache
 def get_settings() -> Settings:

@@ -12,14 +12,17 @@ logger = logging.getLogger(__name__)
 
 
 def build_error_response(code: int, message: str, status_code: int) -> JSONResponse:
-    payload = ApiResponse[None](code=code, message=message, data=None)
+    payload = ApiResponse[object](code=code, message=message, data=None)
     return JSONResponse(status_code=status_code, content=payload.model_dump())
 
 
 async def app_exception_handler(
     _request: Request,
-    exc: AppException,
+    exc: Exception,
 ) -> JSONResponse:
+    if not isinstance(exc, AppException):
+        raise exc
+
     return build_error_response(
         code=exc.code,
         message=exc.message,
@@ -29,8 +32,11 @@ async def app_exception_handler(
 
 async def http_exception_handler(
     _request: Request,
-    exc: HTTPException,
+    exc: Exception,
 ) -> JSONResponse:
+    if not isinstance(exc, HTTPException):
+        raise exc
+
     message = exc.detail if isinstance(exc.detail, str) else str(exc.detail)
     return build_error_response(
         code=exc.status_code,
@@ -41,7 +47,7 @@ async def http_exception_handler(
 
 async def validation_exception_handler(
     _request: Request,
-    _exc: RequestValidationError,
+    _exc: Exception,
 ) -> JSONResponse:
     return build_error_response(
         code=422,
@@ -72,4 +78,3 @@ def register_exception_handlers(app: FastAPI) -> None:
     app.add_exception_handler(HTTPException, http_exception_handler)
     app.add_exception_handler(RequestValidationError, validation_exception_handler)
     app.add_exception_handler(Exception, unhandled_exception_handler)
-
