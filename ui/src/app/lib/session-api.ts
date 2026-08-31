@@ -14,6 +14,7 @@ import type {
 } from "@/types/sessions";
 
 import type { StreamEvent } from "@/types/base";
+import type { PlanCreateData } from "@/types/planner";
 
 export function fetchSessions(): Promise<SessionItem[]> {
   return requestApi<SessionListData>(`/api/sessions`).then(
@@ -87,11 +88,12 @@ export function clearUnread(sessionId: string): Promise<SessionItem> {
   });
 }
 
-
-export function fetchSessionFiles(sessionId: string): Promise<SessionFileItem[]> {
-  return requestApi<SessionFileListData>(`/api/sessions/${sessionId}/files`).then(
-    (data) => data.items,
-  );
+export function fetchSessionFiles(
+  sessionId: string,
+): Promise<SessionFileItem[]> {
+  return requestApi<SessionFileListData>(
+    `/api/sessions/${sessionId}/files`,
+  ).then((data) => data.items);
 }
 
 export async function uploadSessionFile(
@@ -117,4 +119,14 @@ export async function uploadSessionFile(
     throw new Error("empty response");
   }
   return payload.data;
+}
+
+export function createPlan(
+  sessionId: string,
+  task: string,
+): Promise<PlanCreateData> {
+  return requestApi<PlanCreateData>(`/api/sessions/${sessionId}/plan`, {
+    method: "POST",
+    body: JSON.stringify({ task }),
+  });
 }

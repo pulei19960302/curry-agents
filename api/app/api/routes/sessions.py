@@ -9,6 +9,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.routes.files import to_file_response
 from app.api.sse import encode_sse
 from app.application.file_service import FileService
+from app.application.llm_service import LLMService
+from app.application.planner_service import PlannerService
 from app.application.session_service import SessionService
 from app.application.unit_of_work import UnitOfWork
 from app.domain.files.entities import SessionFile
@@ -18,7 +20,8 @@ from app.schemas.common import ApiResponse
 from app.schemas.files import SessionFileResponse, SessionFileListResponse
 from app.schemas.session import (
     SessionResponse, SessionCreateRequest, SessionListResponse, MessageCreateRequest,
-    MessageCreateResponse, MessageResponse, SessionEventResponse, MessageListResponse, SessionEventListResponse)
+    MessageCreateResponse, MessageResponse, SessionEventResponse, MessageListResponse, SessionEventListResponse,
+    PlanCreateRequest, PlanCreateResponse)
 
 router = APIRouter(prefix="/sessions", tags=["sessions"])
 
@@ -28,6 +31,13 @@ def build_session_service(
         db_session: AsyncSession = Depends(get_db_session),
 ) -> SessionService:
     return SessionService(UnitOfWork(db_session))
+
+
+# 创建planner 的服务
+def build_planner_service(
+        db_session: AsyncSession = Depends(get_db_session),
+) -> PlannerService:
+    return PlannerService(UnitOfWork(db_session), LLMService())
 
 
 # 创建file服务
@@ -257,4 +267,23 @@ async def list_session_files(
         data=SessionFileListResponse(
             items=[to_session_file_response(file) for file in files],
         )
+    )
+
+
+@router.post("/{session_id}/plan", response_model=ApiResponse[PlanCreateResponse], )
+async def create_plan(
+        session_id: UUID,
+        payload: PlanCreateRequest,
+        service: PlannerService = Depends(build_planner_service),
+) -> ApiResponse[PlanCreateResponse]:
+    plan, event = await service.create_plan(
+        session_id=session_id,
+        task=payload.task,
+    )
+
+    return ApiResponse(
+        data=PlanCreateResponse.model_validate({
+            "plan": plan,
+            "event": to_event_response(event),
+        })
     )

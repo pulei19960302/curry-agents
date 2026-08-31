@@ -9,10 +9,15 @@ import SessionPanel from "./components/session-panel";
 import StatusBadge from "./components/status-badge";
 import StatusPanel from "./components/status-panel";
 import useSessionWorkspace from "./hooks/use-session-workspace";
+import useAgentThinking from "./hooks/use-agent-thinking";
+
 import { requestApi } from "@/lib/api";
 import type { LoadState, StatusBadgeView } from "@/types/sessions";
 
 import type { ApiStatusData, DatabaseStatusData } from "@/types/api";
+import AgentThinkingPanel from "./components/agent-thinking-panel";
+import AgentCorePanel from "./components/agent-core-panel";
+import useAgentCore from "./hooks/use-agent-core";
 
 export default function Home() {
   const [apiStatus, setApiStatus] = useState<LoadState<ApiStatusData>>({
@@ -23,6 +28,9 @@ export default function Home() {
   >({ type: "loading" });
 
   const workspace = useSessionWorkspace();
+  const agentThinking = useAgentThinking();
+
+  const agentCore = useAgentCore();
 
   async function loadStatus() {
     const [apiData, databaseData] = await Promise.all([
@@ -101,6 +109,26 @@ export default function Home() {
               <SessionPanel selectedSession={workspace.selectedSession} />
             </section>
 
+            <AgentThinkingPanel
+              comparison={agentThinking.comparison}
+              modes={agentThinking.modes}
+              onRun={agentThinking.runComparison}
+              onTaskChange={agentThinking.setTask}
+              running={agentThinking.running}
+              task={agentThinking.task}
+            />
+
+            <AgentCorePanel
+              demo={agentCore.demo}
+              onRun={agentCore.runDemo}
+              onTaskChange={agentCore.setTask}
+              onToolChange={agentCore.setSelectedToolName}
+              running={agentCore.running}
+              selectedToolName={agentCore.selectedToolName}
+              task={agentCore.task}
+              tools={agentCore.tools}
+            />
+
             <ChatWorkspace
               attachments={workspace.attachments}
               clearingUnread={workspace.clearingUnread}
@@ -121,6 +149,9 @@ export default function Home() {
               sending={workspace.sendingMessage}
               stopping={workspace.stoppingSession}
               uploadingFile={workspace.uploadingFile}
+              onCreatePlan={workspace.createPlan}
+              plan={workspace.latestPlan}
+              planning={workspace.planning}
             />
           </div>
         </section>

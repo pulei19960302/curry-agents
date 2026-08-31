@@ -11,6 +11,7 @@ class SessionStatus(StrEnum):
     stopped = 'stopped'
     failed = 'failed'
 
+
 # 这里的 Session 是领域实体，不是数据库模型。
 @dataclass(slots=True)
 class Session:
@@ -39,10 +40,10 @@ class SessionMessage:
     created_at: datetime
 
 
-
 # session 事件类型
 class SessionEventType(StrEnum):
     message_created = "message_created"
+    plan_created = "plan_created"
 
 
 @dataclass(slots=True)

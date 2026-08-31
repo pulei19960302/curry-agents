@@ -4,6 +4,8 @@ import ChatInput from "./chat-input";
 import EventTimeline from "./event-timeline";
 import MessageTimeline from "./message-timeline";
 import SessionControlBar from "./session-control-bar";
+import SessionFilePanel from "./session-file-panel";
+import PlanPanel from "./plan-panel";
 import type {
   ChatMessage,
   LoadState,
@@ -13,7 +15,8 @@ import type {
 } from "@/types/sessions";
 
 import type { FilePreviewData } from "@/types/files";
-import { SessionFilePanel } from "./session-file-panel";
+
+import type { AgentPlan } from "@/types/planner";
 
 type ChatWorkspaceProps = {
   attachments: SessionFileItem[];
@@ -30,11 +33,14 @@ type ChatWorkspaceProps = {
   onSelectFile: (file: SessionFileItem) => void;
   onStop: () => void;
   onUploadFile: (file: File) => void;
+  onCreatePlan: () => void;
   selectedFile: SessionFileItem | null;
   selectedSession: SessionItem | null;
   sending: boolean;
   stopping: boolean;
   uploadingFile: boolean;
+  plan: AgentPlan | null;
+  planning: boolean;
 };
 
 export default function ChatWorkspace({
@@ -52,11 +58,14 @@ export default function ChatWorkspace({
   onSelectFile,
   onStop,
   onUploadFile,
+  onCreatePlan,
   selectedFile,
   selectedSession,
   sending,
   stopping,
   uploadingFile,
+  plan,
+  planning,
 }: ChatWorkspaceProps) {
   return (
     <section className="grid grid-cols-[1fr_280px] gap-5 max-xl:grid-cols-1">
@@ -89,6 +98,12 @@ export default function ChatWorkspace({
       </div>
 
       <aside className="space-y-5">
+        <PlanPanel
+          disabled={!selectedSession}
+          onCreatePlan={onCreatePlan}
+          plan={plan}
+          planning={planning}
+        />
         <SessionFilePanel
           files={files}
           onPreview={onPreviewFile}

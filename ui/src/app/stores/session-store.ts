@@ -11,6 +11,7 @@ import {
   clearUnread,
   fetchSessionFiles,
   uploadSessionFile,
+  createPlan,
 } from "../lib/session-api";
 
 import type {
@@ -21,8 +22,9 @@ import type {
   SessionFileItem,
 } from "@/types/sessions";
 import { StreamEvent } from "@/types/base";
-import { FilePreviewData, UploadedFile } from "@/types/files";
-import { fetchFilePreview, uploadFile } from "@/lib/files-api";
+import { FilePreviewData } from "@/types/files";
+import { fetchFilePreview } from "@/lib/files-api";
+import type { AgentPlan } from "@/types/planner";
 
 //
 export type SessionState = {
@@ -42,6 +44,8 @@ export type SessionState = {
   files: LoadState<SessionFileItem[]>;
   filePreview: LoadState<FilePreviewData | null>;
   selectedFile: SessionFileItem | null;
+  latestPlan: AgentPlan | null;
+  planning: boolean;
 };
 
 type SessionActions = {
@@ -59,6 +63,7 @@ type SessionActions = {
   uploadAttachment: (file: File) => Promise<void>;
   loadFilePreview: (fileId: string) => Promise<void>;
   selectFile: (file: SessionFileItem | null) => void;
+  createPlan: () => Promise<void>;
 };
 
 const initialDetailState = {
@@ -99,6 +104,38 @@ function updateSession(items: SessionItem[], nextSession: SessionItem) {
   return items.map((item) => (item.id === nextSession.id ? nextSession : item));
 }
 
+function toPlan(event: SessionEventItem): AgentPlan | null {
+  if (event.type !== "plan_created") {
+    return null;
+  }
+  const payload = event.payload as Partial<AgentPlan>;
+  if (
+    !payload.id ||
+    !payload.title ||
+    !payload.goal ||
+    !payload.source ||
+    !Array.isArray(payload.steps)
+  ) {
+    return null;
+  }
+  return {
+    id: String(payload.id),
+    title: String(payload.title),
+    goal: String(payload.goal),
+    source: String(payload.source),
+    steps: payload.steps,
+  };
+}
+
+function getLatestPlan(events: SessionEventItem[]) {
+  return (
+    [...events]
+      .reverse()
+      .map(toPlan)
+      .find((plan): plan is AgentPlan => plan !== null) ?? null
+  );
+}
+
 const useSessionStore = create<SessionState & SessionActions>((set, get) => ({
   actionError: null,
   draft: "",
@@ -116,6 +153,8 @@ const useSessionStore = create<SessionState & SessionActions>((set, get) => ({
   files: initialDetailState.files,
   filePreview: initialDetailState.filePreview,
   selectedFile: null,
+  latestPlan: null,
+  planning: false,
 
   setActionError: (message: string | null) => set({ actionError: message }),
 
@@ -172,6 +211,7 @@ const useSessionStore = create<SessionState & SessionActions>((set, get) => ({
       set({
         events: { type: "ready", data: events },
         files: { type: "ready", data: files },
+        latestPlan: getLatestPlan(events),
         messages: { type: "ready", data: messages },
       });
     } catch (error) {
@@ -354,6 +394,44 @@ const useSessionStore = create<SessionState & SessionActions>((set, get) => ({
         actionError: message,
         filePreview: { type: "error", message },
       });
+    }
+  },
+  createPlan: async () => {
+    const sessionId = get().selectedSessionId;
+    if (!sessionId) {
+      set({ actionError: "请先选择一个会话" });
+      return;
+    }
+
+    const messageState = get().messages;
+    const currentMessages =
+      messageState.type === "ready" ? messageState.data : [];
+    const latestUserMessage = [...currentMessages]
+      .reverse()
+      .find((message) => message.role === "user");
+    const task = get().draft.trim() || latestUserMessage?.content.trim() || "";
+    if (!task) {
+      set({ actionError: "请输入任务，或先发送一条用户消息" });
+      return;
+    }
+
+    set({ actionError: null, planning: true });
+    try {
+      const result = await createPlan(sessionId, task);
+      set((state) => {
+        const currentEvents =
+          state.events.type === "ready" ? state.events.data : [];
+        const events = [...currentEvents, result.event];
+        return {
+          events: { type: "ready", data: events },
+          latestPlan: result.plan,
+        };
+      });
+      await get().refreshSessions();
+    } catch (error) {
+      set({ actionError: getErrorMessage(error) });
+    } finally {
+      set({ planning: false });
     }
   },
 }));

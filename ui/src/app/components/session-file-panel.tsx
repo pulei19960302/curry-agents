@@ -15,7 +15,7 @@ type SessionFilePanelProps = {
   selectedFile: SessionFileItem | null;
 };
 
-export function SessionFilePanel({
+export default function SessionFilePanel({
   files,
   onPreview,
   onSelectFile,
