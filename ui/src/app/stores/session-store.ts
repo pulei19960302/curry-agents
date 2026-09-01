@@ -12,6 +12,7 @@ import {
   fetchSessionFiles,
   uploadSessionFile,
   createPlan,
+  executePlan,
 } from "../lib/session-api";
 
 import type {
@@ -46,6 +47,7 @@ export type SessionState = {
   selectedFile: SessionFileItem | null;
   latestPlan: AgentPlan | null;
   planning: boolean;
+  executingPlan: boolean;
 };
 
 type SessionActions = {
@@ -64,6 +66,7 @@ type SessionActions = {
   loadFilePreview: (fileId: string) => Promise<void>;
   selectFile: (file: SessionFileItem | null) => void;
   createPlan: () => Promise<void>;
+  executePlan: () => Promise<void>;
 };
 
 const initialDetailState = {
@@ -136,6 +139,42 @@ function getLatestPlan(events: SessionEventItem[]) {
   );
 }
 
+function applyExecutionEvents(
+  plan: AgentPlan | null,
+  events: SessionEventItem[],
+) {
+  if (!plan) {
+    return null;
+  }
+  const nextSteps = plan.steps.map((step) => ({ ...step }));
+
+  for (const event of events) {
+    const payload = event.payload as Record<string, unknown>;
+    const stepId = typeof payload.step_id === "string" ? payload.step_id : null;
+    if (!stepId) {
+      continue;
+    }
+    const step = nextSteps.find((item) => item.id === stepId);
+    if (!step) {
+      continue;
+    }
+    if (event.type === "step_started") {
+      step.status = "running";
+    }
+    if (event.type === "step_completed") {
+      step.status = "completed";
+    }
+    if (event.type === "task_error") {
+      step.status = "failed";
+    }
+  }
+
+  return {
+    ...plan,
+    steps: nextSteps,
+  };
+}
+
 const useSessionStore = create<SessionState & SessionActions>((set, get) => ({
   actionError: null,
   draft: "",
@@ -155,6 +194,7 @@ const useSessionStore = create<SessionState & SessionActions>((set, get) => ({
   selectedFile: null,
   latestPlan: null,
   planning: false,
+  executingPlan: false,
 
   setActionError: (message: string | null) => set({ actionError: message }),
 
@@ -432,6 +472,36 @@ const useSessionStore = create<SessionState & SessionActions>((set, get) => ({
       set({ actionError: getErrorMessage(error) });
     } finally {
       set({ planning: false });
+    }
+  },
+  executePlan: async () => {
+    const sessionId = get().selectedSessionId;
+    if (!sessionId) {
+      set({ actionError: "请先选择一个会话" });
+      return;
+    }
+    if (!get().latestPlan) {
+      set({ actionError: "请先生成计划" });
+      return;
+    }
+
+    set({ actionError: null, executingPlan: true });
+    try {
+      const result = await executePlan(sessionId);
+      set((state) => {
+        const currentEvents =
+          state.events.type === "ready" ? state.events.data : [];
+        const events = [...currentEvents, ...result.events];
+        return {
+          events: { type: "ready", data: events },
+          latestPlan: applyExecutionEvents(state.latestPlan, result.events),
+        };
+      });
+      await get().refreshSessions();
+    } catch (error) {
+      set({ actionError: getErrorMessage(error) });
+    } finally {
+      set({ executingPlan: false });
     }
   },
 }));

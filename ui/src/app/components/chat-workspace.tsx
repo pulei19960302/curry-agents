@@ -34,6 +34,7 @@ type ChatWorkspaceProps = {
   onStop: () => void;
   onUploadFile: (file: File) => void;
   onCreatePlan: () => void;
+  onExecutePlan: () => void;
   selectedFile: SessionFileItem | null;
   selectedSession: SessionItem | null;
   sending: boolean;
@@ -41,6 +42,7 @@ type ChatWorkspaceProps = {
   uploadingFile: boolean;
   plan: AgentPlan | null;
   planning: boolean;
+  executingPlan: boolean;
 };
 
 export default function ChatWorkspace({
@@ -59,6 +61,7 @@ export default function ChatWorkspace({
   onStop,
   onUploadFile,
   onCreatePlan,
+  onExecutePlan,
   selectedFile,
   selectedSession,
   sending,
@@ -66,6 +69,7 @@ export default function ChatWorkspace({
   uploadingFile,
   plan,
   planning,
+  executingPlan,
 }: ChatWorkspaceProps) {
   return (
     <section className="grid grid-cols-[1fr_280px] gap-5 max-xl:grid-cols-1">
@@ -100,7 +104,9 @@ export default function ChatWorkspace({
       <aside className="space-y-5">
         <PlanPanel
           disabled={!selectedSession}
+          executing={executingPlan}
           onCreatePlan={onCreatePlan}
+          onExecutePlan={onExecutePlan}
           plan={plan}
           planning={planning}
         />

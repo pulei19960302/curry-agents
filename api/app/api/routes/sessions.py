@@ -11,6 +11,7 @@ from app.api.sse import encode_sse
 from app.application.file_service import FileService
 from app.application.llm_service import LLMService
 from app.application.planner_service import PlannerService
+from app.application.react_agent_service import ReActAgentService
 from app.application.session_service import SessionService
 from app.application.unit_of_work import UnitOfWork
 from app.domain.files.entities import SessionFile
@@ -21,7 +22,7 @@ from app.schemas.files import SessionFileResponse, SessionFileListResponse
 from app.schemas.session import (
     SessionResponse, SessionCreateRequest, SessionListResponse, MessageCreateRequest,
     MessageCreateResponse, MessageResponse, SessionEventResponse, MessageListResponse, SessionEventListResponse,
-    PlanCreateRequest, PlanCreateResponse)
+    PlanCreateRequest, PlanCreateResponse, PlanExecuteResponse)
 
 router = APIRouter(prefix="/sessions", tags=["sessions"])
 
@@ -45,6 +46,13 @@ def build_file_service(
         db_session: AsyncSession = Depends(get_db_session),
 ) -> FileService:
     return FileService(UnitOfWork(db_session))
+
+
+# 创建plan步骤执行服务
+def build_react_agent_service(
+        db_session: AsyncSession = Depends(get_db_session),
+) -> ReActAgentService:
+    return ReActAgentService(UnitOfWork(db_session))
 
 
 # entity -> session response 映射
@@ -286,4 +294,17 @@ async def create_plan(
             "plan": plan,
             "event": to_event_response(event),
         })
+    )
+
+
+@router.post("/{session_id}/plan/execute", response_model=ApiResponse[PlanExecuteResponse])
+async def execute_plan(
+        session_id: UUID,
+        service: ReActAgentService = Depends(build_react_agent_service)
+) -> ApiResponse[PlanExecuteResponse]:
+    events = await service.execute_latest_plan(session_id)
+    return ApiResponse(
+        data=PlanExecuteResponse(
+            events=[to_event_response(event) for event in events],
+        )
     )

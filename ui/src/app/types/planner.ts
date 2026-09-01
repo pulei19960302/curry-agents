@@ -20,3 +20,7 @@ export type PlanCreateData = {
   plan: AgentPlan;
   event: SessionEventItem;
 };
+
+export type PlanExecuteData = {
+  events: SessionEventItem[];
+};

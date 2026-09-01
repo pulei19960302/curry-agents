@@ -152,6 +152,8 @@ export default function Home() {
               onCreatePlan={workspace.createPlan}
               plan={workspace.latestPlan}
               planning={workspace.planning}
+              executingPlan={workspace.executingPlan}
+              onExecutePlan={workspace.executePlan}
             />
           </div>
         </section>

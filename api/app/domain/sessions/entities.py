@@ -44,6 +44,11 @@ class SessionMessage:
 class SessionEventType(StrEnum):
     message_created = "message_created"
     plan_created = "plan_created"
+    step_started = "step_started"
+    tool_called = "tool_called"
+    step_completed = "step_completed"
+    task_done = "task_done"
+    task_error = "task_error"
 
 
 @dataclass(slots=True)

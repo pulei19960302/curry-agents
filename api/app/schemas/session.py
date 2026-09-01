@@ -83,3 +83,7 @@ class PlanResponse(ResponseSchema):
 class PlanCreateResponse(ResponseSchema):
     plan: PlanResponse
     event: SessionEventResponse
+
+
+class PlanExecuteResponse(ResponseSchema):
+    events: list[SessionEventResponse]

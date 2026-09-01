@@ -1,19 +1,23 @@
-import { GitBranch, Loader2, Sparkles } from "lucide-react";
+import { GitBranch, Loader2, Sparkles, Play } from "lucide-react";
 
 import type { AgentPlan } from "@/types/planner";
 
 type PlanPanelProps = {
   disabled: boolean;
   onCreatePlan: () => void;
+  onExecutePlan: () => void;
   plan: AgentPlan | null;
   planning: boolean;
+  executing: boolean;
 };
 
 export default function PlanPanel({
   disabled,
   onCreatePlan,
+  onExecutePlan,
   plan,
   planning,
+  executing,
 }: PlanPanelProps) {
   return (
     <div className="rounded-md border border-slate-200 bg-white p-5">
@@ -36,6 +40,19 @@ export default function PlanPanel({
             <Sparkles size={15} />
           )}
           生成
+        </button>
+        <button
+          className="inline-flex h-9 items-center gap-2 rounded-md border border-slate-200 bg-slate-950 px-3 text-sm font-medium text-white disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-200 disabled:text-slate-500"
+          disabled={disabled || !plan || executing || planning}
+          onClick={onExecutePlan}
+          type="button"
+        >
+          {executing ? (
+            <Loader2 className="animate-spin" size={15} />
+          ) : (
+            <Play size={15} />
+          )}
+          执行
         </button>
       </div>
 
@@ -64,6 +81,9 @@ export default function PlanPanel({
                     <div className="text-sm font-medium text-slate-900">
                       {step.title}
                     </div>
+                    <span className="mt-1 inline-flex rounded bg-white px-2 py-0.5 text-xs text-slate-500">
+                      {step.status}
+                    </span>
                     <p className="mt-1 text-sm leading-6 text-slate-600">
                       {step.description}
                     </p>

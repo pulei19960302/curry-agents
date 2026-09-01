@@ -14,7 +14,7 @@ import type {
 } from "@/types/sessions";
 
 import type { StreamEvent } from "@/types/base";
-import type { PlanCreateData } from "@/types/planner";
+import type { PlanCreateData, PlanExecuteData } from "@/types/planner";
 
 export function fetchSessions(): Promise<SessionItem[]> {
   return requestApi<SessionListData>(`/api/sessions`).then(
@@ -129,4 +129,13 @@ export function createPlan(
     method: "POST",
     body: JSON.stringify({ task }),
   });
+}
+
+export function executePlan(sessionId: string): Promise<PlanExecuteData> {
+  return requestApi<PlanExecuteData>(
+    `/api/sessions/${sessionId}/plan/execute`,
+    {
+      method: "POST",
+    },
+  );
 }
