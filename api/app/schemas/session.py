@@ -87,3 +87,13 @@ class PlanCreateResponse(ResponseSchema):
 
 class PlanExecuteResponse(ResponseSchema):
     events: list[SessionEventResponse]
+
+
+class AgentTaskResponse(ResponseSchema):
+    id: UUID
+    session_id: UUID
+    type: str
+    status: str
+    error: str | None
+    created_at: datetime
+    updated_at: datetime

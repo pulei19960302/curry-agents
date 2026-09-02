@@ -1,23 +1,23 @@
-import { requestApi } from "@/lib/api";
+import { requestApi } from "./api";
 import { readSseStream } from "./sse";
-
 import type {
+  AgentTaskItem,
   ChatMessage,
+  MessageCreateData,
   MessageListData,
   SessionEventItem,
   SessionEventListData,
-  MessageCreateData,
-  SessionItem,
-  SessionListData,
   SessionFileItem,
   SessionFileListData,
+  SessionItem,
+  SessionListData,
 } from "@/types/sessions";
 
-import type { StreamEvent } from "@/types/base";
-import type { PlanCreateData, PlanExecuteData } from "@/types/planner";
+import { PlanCreateData, PlanExecuteData } from "@/types/planner";
+import { StreamEvent } from "@/types/base";
 
 export function fetchSessions(): Promise<SessionItem[]> {
-  return requestApi<SessionListData>(`/api/sessions`).then(
+  return requestApi<SessionListData>("/api/sessions").then(
     (data) => data.items,
   );
 }
@@ -33,49 +33,6 @@ export function deleteSession(sessionId: string): Promise<void> {
   return requestApi<void>(`/api/sessions/${sessionId}`, { method: "DELETE" });
 }
 
-export function fetchMessages(sessionId: string): Promise<ChatMessage[]> {
-  return requestApi<MessageListData>(
-    `/api/sessions/${sessionId}/messages`,
-  ).then((data) => data.items);
-}
-
-export function fetchEvents(sessionId: string): Promise<SessionEventItem[]> {
-  return requestApi<SessionEventListData>(
-    `/api/sessions/${sessionId}/events`,
-  ).then((data) => data.items);
-}
-
-export function sendMessage(
-  sessionId: string,
-  content: string,
-): Promise<MessageCreateData> {
-  return requestApi<MessageCreateData>(`/api/sessions/${sessionId}/messages`, {
-    method: "POST",
-    body: JSON.stringify({ content }),
-  });
-}
-
-export async function sendMessageToStream(
-  sessionId: string,
-  content: string,
-  onEvent: (event: StreamEvent) => void,
-) {
-  const response = await fetch(`/api/sessions/${sessionId}/messages/stream`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Accept: "text/event-stream",
-    },
-    body: JSON.stringify({ content }),
-  });
-
-  if (!response.ok) {
-    throw new Error(`HTTP ${response.status}`);
-  }
-
-  await readSseStream(response, onEvent);
-}
-
 export function stopSession(sessionId: string): Promise<SessionItem> {
   return requestApi<SessionItem>(`/api/sessions/${sessionId}/stop`, {
     method: "POST",
@@ -86,6 +43,18 @@ export function clearUnread(sessionId: string): Promise<SessionItem> {
   return requestApi<SessionItem>(`/api/sessions/${sessionId}/read`, {
     method: "POST",
   });
+}
+
+export function fetchMessages(sessionId: string): Promise<ChatMessage[]> {
+  return requestApi<MessageListData>(
+    `/api/sessions/${sessionId}/messages`,
+  ).then((data) => data.items);
+}
+
+export function fetchEvents(sessionId: string): Promise<SessionEventItem[]> {
+  return requestApi<SessionEventListData>(
+    `/api/sessions/${sessionId}/events`,
+  ).then((data) => data.items);
 }
 
 export function fetchSessionFiles(
@@ -121,6 +90,16 @@ export async function uploadSessionFile(
   return payload.data;
 }
 
+export function sendMessage(
+  sessionId: string,
+  content: string,
+): Promise<MessageCreateData> {
+  return requestApi<MessageCreateData>(`/api/sessions/${sessionId}/messages`, {
+    method: "POST",
+    body: JSON.stringify({ content }),
+  });
+}
+
 export function createPlan(
   sessionId: string,
   task: string,
@@ -138,4 +117,41 @@ export function executePlan(sessionId: string): Promise<PlanExecuteData> {
       method: "POST",
     },
   );
+}
+
+export function startPlanTask(sessionId: string): Promise<AgentTaskItem> {
+  return requestApi<AgentTaskItem>(`/api/sessions/${sessionId}/plan/tasks`, {
+    method: "POST",
+  });
+}
+
+export function fetchAgentTask(taskId: string): Promise<AgentTaskItem> {
+  return requestApi<AgentTaskItem>(`/api/sessions/tasks/${taskId}`);
+}
+
+export function cancelAgentTask(taskId: string): Promise<AgentTaskItem> {
+  return requestApi<AgentTaskItem>(`/api/sessions/tasks/${taskId}/cancel`, {
+    method: "POST",
+  });
+}
+
+export async function sendMessageToStream(
+  sessionId: string,
+  content: string,
+  onEvent: (event: StreamEvent) => void,
+) {
+  const response = await fetch(`/api/sessions/${sessionId}/messages/stream`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "text/event-stream",
+    },
+    body: JSON.stringify({ content }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}`);
+  }
+
+  await readSseStream(response, onEvent);
 }

@@ -53,6 +53,11 @@ class Settings(BaseSettings):
     # llm 配置
     llm_config_path: str = "config/llm.yaml"
 
+    # redis_task 相关配置
+    redis_url: str = "redis://127.0.0.1:6379/0"
+    agent_task_stream: str = "agent:tasks"
+    agent_task_poll_timeout_ms: int = 1000
+
 
 @lru_cache
 def get_settings() -> Settings:

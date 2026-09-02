@@ -79,8 +79,6 @@ class ReActAgentService:
             await self.uow.commit()
             return [*created_events, error_event]
 
-
-
     # 开始执行计划里面的步骤
     async def _execute_step(
             self,
@@ -132,8 +130,7 @@ class ReActAgentService:
 
         return [started_event, tool_called_event, completed_event]
 
-        # 根据event倒叙查找最新的plan_created事件
-
+    # 根据event倒叙查找最新的plan_created事件
     def _find_latest_plan_event(self, events: list[SessionEvent]) -> SessionEvent:
 
         for event in reversed(events):

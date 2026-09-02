@@ -137,6 +137,7 @@ export default function Home() {
               files={workspace.files}
               filePreview={workspace.filePreview}
               messages={workspace.messages}
+              onCancelTask={workspace.cancelPlanTask}
               onClearUnread={workspace.clearUnread}
               onDraftChange={workspace.setDraft}
               onPreviewFile={workspace.loadFilePreview}
@@ -148,6 +149,7 @@ export default function Home() {
               selectedSession={workspace.selectedSession}
               sending={workspace.sendingMessage}
               stopping={workspace.stoppingSession}
+              task={workspace.currentTask}
               uploadingFile={workspace.uploadingFile}
               onCreatePlan={workspace.createPlan}
               plan={workspace.latestPlan}

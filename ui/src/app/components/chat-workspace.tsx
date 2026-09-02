@@ -7,6 +7,7 @@ import SessionControlBar from "./session-control-bar";
 import SessionFilePanel from "./session-file-panel";
 import PlanPanel from "./plan-panel";
 import type {
+  AgentTaskItem,
   ChatMessage,
   LoadState,
   SessionEventItem,
@@ -27,6 +28,7 @@ type ChatWorkspaceProps = {
   filePreview: LoadState<FilePreviewData | null>;
   messages: LoadState<ChatMessage[]>;
   onClearUnread: () => void;
+  onCancelTask: () => void;
   onDraftChange: (value: string) => void;
   onPreviewFile: (fileId: string) => void;
   onSend: () => void;
@@ -43,6 +45,7 @@ type ChatWorkspaceProps = {
   plan: AgentPlan | null;
   planning: boolean;
   executingPlan: boolean;
+  task: AgentTaskItem | null;
 };
 
 export default function ChatWorkspace({
@@ -53,6 +56,7 @@ export default function ChatWorkspace({
   files,
   filePreview,
   messages,
+  onCancelTask,
   onClearUnread,
   onDraftChange,
   onPreviewFile,
@@ -70,6 +74,7 @@ export default function ChatWorkspace({
   plan,
   planning,
   executingPlan,
+  task,
 }: ChatWorkspaceProps) {
   return (
     <section className="grid grid-cols-[1fr_280px] gap-5 max-xl:grid-cols-1">
@@ -105,10 +110,12 @@ export default function ChatWorkspace({
         <PlanPanel
           disabled={!selectedSession}
           executing={executingPlan}
+          onCancelTask={onCancelTask}
           onCreatePlan={onCreatePlan}
           onExecutePlan={onExecutePlan}
           plan={plan}
           planning={planning}
+          task={task}
         />
         <SessionFilePanel
           files={files}

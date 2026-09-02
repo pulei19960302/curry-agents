@@ -67,3 +67,15 @@ export type SessionFileItem = {
 export type SessionFileListData = {
   items: SessionFileItem[];
 };
+
+
+
+export type AgentTaskItem = {
+  id: string;
+  session_id: string;
+  type: string;
+  status: "queued" | "running" | "succeeded" | "failed" | "cancelled";
+  error: string | null;
+  created_at: string;
+  updated_at: string;
+};

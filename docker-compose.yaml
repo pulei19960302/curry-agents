@@ -37,6 +37,8 @@ services:
       --appendonly yes
       --maxmemory 256mb
       --maxmemory-policy allkeys-lru
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
     volumes:
       - redis_data:/data
     networks:
@@ -46,6 +48,24 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+
+  # Redis 中文图形化管理界面，浏览器访问 http://localhost:8086
+  tiny-rdm:
+    image: ghcr.io/tiny-craft/tiny-rdm:latest
+    container_name: curry-tiny-rdm
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${TINY_RDM_PORT:-8086}:8086"
+    environment:
+      ADMIN_USERNAME: ${TINY_RDM_USERNAME:-admin}
+      ADMIN_PASSWORD: ${TINY_RDM_PASSWORD:-curry-agents}
+    volumes:
+      - tiny_rdm_data:/app/tinyrdm
+    networks:
+      - curry-network
+    depends_on:
+      redis:
+        condition: service_healthy
 
   # api相关服务
   api:
@@ -80,6 +100,11 @@ services:
       LLM_CONFIG_PATH: ${LLM_CONFIG_PATH:-config/llm.yaml}
       LLM_API_KEY: ${LLM_API_KEY:-}
 
+      # redis 相关服务
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      AGENT_TASK_STREAM: ${AGENT_TASK_STREAM:-agent:tasks}
+      AGENT_TASK_POLL_TIMEOUT_MS: ${AGENT_TASK_POLL_TIMEOUT_MS:-1000}
+
     ports:
       - "${API_PORT:-8000}:8000"
     volumes:
@@ -91,6 +116,9 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    depends_on:
+      - postgres
+      - redis
 
   # ui相关服务
   ui:
@@ -131,6 +159,7 @@ services:
 volumes:
   postgres_data:
   redis_data:
+  tiny_rdm_data:
   api_uploads:
 
 networks:

@@ -13,6 +13,9 @@ import {
   uploadSessionFile,
   createPlan,
   executePlan,
+  cancelAgentTask,
+  fetchAgentTask,
+  startPlanTask,
 } from "../lib/session-api";
 
 import type {
@@ -21,6 +24,7 @@ import type {
   ChatMessage,
   SessionItem,
   SessionFileItem,
+  AgentTaskItem,
 } from "@/types/sessions";
 import { StreamEvent } from "@/types/base";
 import { FilePreviewData } from "@/types/files";
@@ -48,6 +52,7 @@ export type SessionState = {
   latestPlan: AgentPlan | null;
   planning: boolean;
   executingPlan: boolean;
+  currentTask: AgentTaskItem | null;
 };
 
 type SessionActions = {
@@ -67,6 +72,7 @@ type SessionActions = {
   selectFile: (file: SessionFileItem | null) => void;
   createPlan: () => Promise<void>;
   executePlan: () => Promise<void>;
+  cancelPlanTask: () => Promise<void>;
 };
 
 const initialDetailState = {
@@ -78,6 +84,14 @@ const initialDetailState = {
     data: null,
   } as LoadState<FilePreviewData | null>,
 };
+
+function sleep(ms: number) {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
+
+function isTerminalTaskStatus(status: AgentTaskItem["status"]) {
+  return ["succeeded", "failed", "cancelled"].includes(status);
+}
 
 function getErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : "unknown error";
@@ -146,32 +160,39 @@ function applyExecutionEvents(
   if (!plan) {
     return null;
   }
-  const nextSteps = plan.steps.map((step) => ({ ...step }));
+
+  const startedStepIds = new Set<string>();
+  const completedStepIds = new Set<string>();
 
   for (const event of events) {
     const payload = event.payload as Record<string, unknown>;
+    const planId = typeof payload.plan_id === "string" ? payload.plan_id : null;
+    if (planId && planId !== plan.id) {
+      continue;
+    }
     const stepId = typeof payload.step_id === "string" ? payload.step_id : null;
     if (!stepId) {
       continue;
     }
-    const step = nextSteps.find((item) => item.id === stepId);
-    if (!step) {
-      continue;
-    }
+
     if (event.type === "step_started") {
-      step.status = "running";
+      startedStepIds.add(stepId);
     }
     if (event.type === "step_completed") {
-      step.status = "completed";
-    }
-    if (event.type === "task_error") {
-      step.status = "failed";
+      completedStepIds.add(stepId);
     }
   }
 
   return {
     ...plan,
-    steps: nextSteps,
+    steps: plan.steps.map((step) => ({
+      ...step,
+      status: completedStepIds.has(step.id)
+        ? "completed"
+        : startedStepIds.has(step.id)
+          ? "running"
+          : "pending",
+    })),
   };
 }
 
@@ -195,6 +216,7 @@ const useSessionStore = create<SessionState & SessionActions>((set, get) => ({
   latestPlan: null,
   planning: false,
   executingPlan: false,
+  currentTask: null,
 
   setActionError: (message: string | null) => set({ actionError: message }),
 
@@ -251,7 +273,7 @@ const useSessionStore = create<SessionState & SessionActions>((set, get) => ({
       set({
         events: { type: "ready", data: events },
         files: { type: "ready", data: files },
-        latestPlan: getLatestPlan(events),
+        latestPlan: applyExecutionEvents(getLatestPlan(events), events),
         messages: { type: "ready", data: messages },
       });
     } catch (error) {
@@ -485,23 +507,54 @@ const useSessionStore = create<SessionState & SessionActions>((set, get) => ({
       return;
     }
 
-    set({ actionError: null, executingPlan: true });
+    set({ actionError: null, currentTask: null, executingPlan: true });
     try {
-      const result = await executePlan(sessionId);
-      set((state) => {
-        const currentEvents =
-          state.events.type === "ready" ? state.events.data : [];
-        const events = [...currentEvents, ...result.events];
-        return {
+      // ===================== 第1步：只把任务放入 Redis Stream，不等待执行结束 =====================
+      const queuedTask = await startPlanTask(sessionId);
+      set({ currentTask: queuedTask });
+
+      // ===================== 第2步：轮询任务状态，同时刷新事件面板 =====================
+      let latestTask = queuedTask;
+      while (!isTerminalTaskStatus(latestTask.status)) {
+        await sleep(1000);
+        latestTask = await fetchAgentTask(queuedTask.id);
+        const events = await fetchEvents(sessionId);
+        set({
+          currentTask: latestTask,
           events: { type: "ready", data: events },
-          latestPlan: applyExecutionEvents(state.latestPlan, result.events),
-        };
-      });
+          latestPlan: applyExecutionEvents(getLatestPlan(events), events),
+        });
+      }
+
+      // ===================== 第3步：任务结束后用数据库状态做最终刷新 =====================
+      if (latestTask.status === "failed") {
+        set({ actionError: latestTask.error ?? "任务执行失败" });
+      }
+      if (latestTask.status === "cancelled") {
+        set({ actionError: "任务已取消" });
+      }
+      await get().loadSessionDetail(sessionId);
       await get().refreshSessions();
     } catch (error) {
       set({ actionError: getErrorMessage(error) });
     } finally {
       set({ executingPlan: false });
+    }
+  },
+
+  cancelPlanTask: async () => {
+    const task = get().currentTask;
+    if (!task) {
+      set({ actionError: "当前没有可取消的任务" });
+      return;
+    }
+
+    set({ actionError: null });
+    try {
+      const cancelled = await cancelAgentTask(task.id);
+      set({ currentTask: cancelled });
+    } catch (error) {
+      set({ actionError: getErrorMessage(error) });
     }
   },
 }));

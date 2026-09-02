@@ -2,7 +2,7 @@ from asyncio import sleep
 from http import HTTPStatus
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Response, UploadFile, File
+from fastapi import APIRouter, Depends, Response, UploadFile, File, Request
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -17,12 +17,13 @@ from app.application.unit_of_work import UnitOfWork
 from app.domain.files.entities import SessionFile
 from app.domain.sessions.entities import Session, SessionMessage, SessionEvent
 from app.infrastructure.database.session import get_db_session
+from app.infrastructure.redis_task.task_queue import RedisAgentTaskQueue
 from app.schemas.common import ApiResponse
 from app.schemas.files import SessionFileResponse, SessionFileListResponse
 from app.schemas.session import (
     SessionResponse, SessionCreateRequest, SessionListResponse, MessageCreateRequest,
     MessageCreateResponse, MessageResponse, SessionEventResponse, MessageListResponse, SessionEventListResponse,
-    PlanCreateRequest, PlanCreateResponse, PlanExecuteResponse)
+    PlanCreateRequest, PlanCreateResponse, PlanExecuteResponse, AgentTaskResponse)
 
 router = APIRouter(prefix="/sessions", tags=["sessions"])
 
@@ -53,6 +54,10 @@ def build_react_agent_service(
         db_session: AsyncSession = Depends(get_db_session),
 ) -> ReActAgentService:
     return ReActAgentService(UnitOfWork(db_session))
+
+
+def get_task_queue(request: Request) -> RedisAgentTaskQueue:
+    return request.app.state.task_queue
 
 
 # entity -> session response 映射
@@ -308,3 +313,48 @@ async def execute_plan(
             events=[to_event_response(event) for event in events],
         )
     )
+
+
+# 创建任务
+@router.post("/{session_id}/plan/tasks", response_model=ApiResponse[AgentTaskResponse])
+async def start_plan_task(
+        session_id: UUID,
+        service: SessionService = Depends(build_session_service),
+        queue: RedisAgentTaskQueue = Depends(get_task_queue),
+) -> ApiResponse[AgentTaskResponse]:
+    await service.get_session(session_id)
+    task = await queue.enqueue_execute_plan(session_id)
+    return ApiResponse(data=AgentTaskResponse.model_validate(task))
+
+
+@router.get("/tasks/{task_id}", response_model=ApiResponse[AgentTaskResponse])
+async def get_task_task(
+        task_id: str,
+        queue: RedisAgentTaskQueue = Depends(get_task_queue),
+) -> ApiResponse[AgentTaskResponse]:
+    task = await queue.get_task(task_id)
+    if task is None:
+        return ApiResponse(
+            code=404,
+            message="task not found",
+            data=None,
+        )
+    return ApiResponse(data=AgentTaskResponse.model_validate(task))
+
+
+@router.post(
+    "/tasks/{task_id}/cancel",
+    response_model=ApiResponse[AgentTaskResponse],
+)
+async def cancel_agent_task(
+        task_id: str,
+        queue: RedisAgentTaskQueue = Depends(get_task_queue),
+) -> ApiResponse[AgentTaskResponse]:
+    task = await queue.cancel_task(task_id)
+    if task is None:
+        return ApiResponse(
+            code=404,
+            message="task not found",
+            data=None,
+        )
+    return ApiResponse(data=AgentTaskResponse.model_validate(task))
