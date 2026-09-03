@@ -23,9 +23,9 @@ export default function Home() {
   const [apiStatus, setApiStatus] = useState<LoadState<ApiStatusData>>({
     type: "loading",
   });
-  const [databaseStatus, setDatabaseStatus] = useState<
-    LoadState<DatabaseStatusData>
-  >({ type: "loading" });
+  const [databaseStatus, setDatabaseStatus] = useState<LoadState<DatabaseStatusData>>({
+    type: "loading",
+  });
 
   const workspace = useSessionWorkspace();
   const agentThinking = useAgentThinking();
@@ -54,6 +54,12 @@ export default function Home() {
         current.type === "loading" ? { type: "error", message } : current,
       );
       workspace.setActionError(message);
+    }
+  }
+
+  async function refreshContext() {
+    if (workspace.selectedSessionId) {
+      await workspace.loadSessionContext(workspace.selectedSessionId);
     }
   }
 
@@ -90,9 +96,7 @@ export default function Home() {
               <h1 className="text-xl font-semibold tracking-normal text-slate-950">
                 {workspace.selectedSession?.title ?? "工作台"}
               </h1>
-              <p className="mt-1 text-sm text-slate-500">
-                创建会话后，可以发送第一条任务消息
-              </p>
+              <p className="mt-1 text-sm text-slate-500">创建会话后，可以发送第一条任务消息</p>
             </div>
             <div className="flex gap-2 max-sm:flex-wrap">
               <StatusBadge badge={apiBadge} />
@@ -102,10 +106,7 @@ export default function Home() {
 
           <div className="grid gap-5 p-6 max-sm:p-4">
             <section className="grid grid-cols-[1fr_1fr] gap-5 max-xl:grid-cols-1">
-              <StatusPanel
-                apiStatus={apiStatus}
-                databaseStatus={databaseStatus}
-              />
+              <StatusPanel apiStatus={apiStatus} databaseStatus={databaseStatus} />
               <SessionPanel selectedSession={workspace.selectedSession} />
             </section>
 
@@ -156,6 +157,8 @@ export default function Home() {
               planning={workspace.planning}
               executingPlan={workspace.executingPlan}
               onExecutePlan={workspace.executePlan}
+              context={workspace.context}
+              onRefreshContext={refreshContext}
             />
           </div>
         </section>
@@ -164,11 +167,7 @@ export default function Home() {
   );
 }
 
-function getBadge<T>(
-  state: LoadState<T>,
-  readyLabel: string,
-  errorLabel: string,
-): StatusBadgeView {
+function getBadge<T>(state: LoadState<T>, readyLabel: string, errorLabel: string): StatusBadgeView {
   if (state.type === "ready") {
     return {
       label: readyLabel,

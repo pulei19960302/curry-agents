@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.routes.files import to_file_response
 from app.api.sse import encode_sse
+from app.application.context_engineering_service import ContextEngineeringService
 from app.application.file_service import FileService
 from app.application.llm_service import LLMService
 from app.application.planner_service import PlannerService
@@ -23,7 +24,7 @@ from app.schemas.files import SessionFileResponse, SessionFileListResponse
 from app.schemas.session import (
     SessionResponse, SessionCreateRequest, SessionListResponse, MessageCreateRequest,
     MessageCreateResponse, MessageResponse, SessionEventResponse, MessageListResponse, SessionEventListResponse,
-    PlanCreateRequest, PlanCreateResponse, PlanExecuteResponse, AgentTaskResponse)
+    PlanCreateRequest, PlanCreateResponse, PlanExecuteResponse, AgentTaskResponse, SessionContextResponse)
 
 router = APIRouter(prefix="/sessions", tags=["sessions"])
 
@@ -33,6 +34,13 @@ def build_session_service(
         db_session: AsyncSession = Depends(get_db_session),
 ) -> SessionService:
     return SessionService(UnitOfWork(db_session))
+
+
+# 创建相关服务
+def build_context_engineering_service(
+        db_session: AsyncSession = Depends(get_db_session),
+) -> ContextEngineeringService:
+    return ContextEngineeringService(UnitOfWork(db_session))
 
 
 # 创建planner 的服务
@@ -162,6 +170,17 @@ async def list_message(
         data=MessageListResponse(
             items=[to_message_response(message) for message in result],
         )
+    )
+
+
+@router.get("/{session_id}/context", response_model=ApiResponse[SessionContextResponse])
+async def get_session_context(
+        session_id: UUID,
+        service: ContextEngineeringService = Depends(build_context_engineering_service)
+) -> ApiResponse[SessionContextResponse]:
+    result = await  service.build_snapshot(session_id)
+    return ApiResponse(
+        data=SessionContextResponse.model_validate(result)
     )
 
 

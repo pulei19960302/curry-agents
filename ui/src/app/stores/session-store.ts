@@ -1,30 +1,31 @@
 import { create } from "zustand";
 
 import {
+  cancelAgentTask,
+  clearUnread,
+  createPlan,
   createSession,
   deleteSession,
+  fetchAgentTask,
   fetchEvents,
   fetchMessages,
+  fetchSessionContext,
+  fetchSessionFiles,
   fetchSessions,
   sendMessageToStream,
-  stopSession,
-  clearUnread,
-  fetchSessionFiles,
-  uploadSessionFile,
-  createPlan,
-  executePlan,
-  cancelAgentTask,
-  fetchAgentTask,
   startPlanTask,
-} from "../lib/session-api";
+  stopSession,
+  uploadSessionFile,
+} from "@/lib/session-api";
 
 import type {
-  LoadState,
-  SessionEventItem,
-  ChatMessage,
-  SessionItem,
-  SessionFileItem,
   AgentTaskItem,
+  ChatMessage,
+  LoadState,
+  SessionContextData,
+  SessionEventItem,
+  SessionFileItem,
+  SessionItem,
 } from "@/types/sessions";
 import { StreamEvent } from "@/types/base";
 import { FilePreviewData } from "@/types/files";
@@ -53,6 +54,7 @@ export type SessionState = {
   planning: boolean;
   executingPlan: boolean;
   currentTask: AgentTaskItem | null;
+  context: LoadState<SessionContextData | null>;
 };
 
 type SessionActions = {
@@ -73,6 +75,7 @@ type SessionActions = {
   createPlan: () => Promise<void>;
   executePlan: () => Promise<void>;
   cancelPlanTask: () => Promise<void>;
+  loadSessionContext: (sessionId: string) => Promise<void>;
 };
 
 const initialDetailState = {
@@ -83,6 +86,7 @@ const initialDetailState = {
     type: "ready",
     data: null,
   } as LoadState<FilePreviewData | null>,
+  context: { type: "ready", data: null } as LoadState<SessionContextData | null>,
 };
 
 function sleep(ms: number) {
@@ -153,10 +157,7 @@ function getLatestPlan(events: SessionEventItem[]) {
   );
 }
 
-function applyExecutionEvents(
-  plan: AgentPlan | null,
-  events: SessionEventItem[],
-) {
+function applyExecutionEvents(plan: AgentPlan | null, events: SessionEventItem[]) {
   if (!plan) {
     return null;
   }
@@ -217,6 +218,7 @@ const useSessionStore = create<SessionState & SessionActions>((set, get) => ({
   planning: false,
   executingPlan: false,
   currentTask: null,
+  context: initialDetailState.context,
 
   setActionError: (message: string | null) => set({ actionError: message }),
 
@@ -238,8 +240,7 @@ const useSessionStore = create<SessionState & SessionActions>((set, get) => ({
       const items = await fetchSessions();
       set((state) => {
         const selectedSessionId =
-          state.selectedSessionId &&
-          items.some((item) => item.id === state.selectedSessionId)
+          state.selectedSessionId && items.some((item) => item.id === state.selectedSessionId)
             ? state.selectedSessionId
             : (items[0]?.id ?? null);
         return {
@@ -263,18 +264,21 @@ const useSessionStore = create<SessionState & SessionActions>((set, get) => ({
       filePreview: { type: "ready", data: null },
       messages: { type: "loading" },
       selectedFile: null,
+      context: { type: "loading" },
     });
     try {
-      const [messages, events, files] = await Promise.all([
+      const [messages, events, files, context] = await Promise.all([
         fetchMessages(sessionId),
         fetchEvents(sessionId),
         fetchSessionFiles(sessionId),
+        fetchSessionContext(sessionId),
       ]);
       set({
         events: { type: "ready", data: events },
         files: { type: "ready", data: files },
         latestPlan: applyExecutionEvents(getLatestPlan(events), events),
         messages: { type: "ready", data: messages },
+        context: { type: "ready", data: context },
       });
     } catch (error) {
       const message = getErrorMessage(error);
@@ -283,6 +287,7 @@ const useSessionStore = create<SessionState & SessionActions>((set, get) => ({
         events: { type: "error", message },
         files: { type: "error", message },
         messages: { type: "error", message },
+        context: { type: "error", message },
       });
     }
   },
@@ -339,8 +344,7 @@ const useSessionStore = create<SessionState & SessionActions>((set, get) => ({
           return;
         }
         set((state) => {
-          const currentEvents =
-            state.events.type === "ready" ? state.events.data : [];
+          const currentEvents = state.events.type === "ready" ? state.events.data : [];
           return {
             events: {
               type: "ready",
@@ -350,10 +354,7 @@ const useSessionStore = create<SessionState & SessionActions>((set, get) => ({
         });
       });
       set({ draft: "" });
-      await Promise.all([
-        get().loadSessionDetail(sessionId),
-        get().refreshSessions(),
-      ]);
+      await Promise.all([get().loadSessionDetail(sessionId), get().refreshSessions()]);
     } catch (error) {
       set({ actionError: getErrorMessage(error) });
     } finally {
@@ -466,8 +467,7 @@ const useSessionStore = create<SessionState & SessionActions>((set, get) => ({
     }
 
     const messageState = get().messages;
-    const currentMessages =
-      messageState.type === "ready" ? messageState.data : [];
+    const currentMessages = messageState.type === "ready" ? messageState.data : [];
     const latestUserMessage = [...currentMessages]
       .reverse()
       .find((message) => message.role === "user");
@@ -481,8 +481,7 @@ const useSessionStore = create<SessionState & SessionActions>((set, get) => ({
     try {
       const result = await createPlan(sessionId, task);
       set((state) => {
-        const currentEvents =
-          state.events.type === "ready" ? state.events.data : [];
+        const currentEvents = state.events.type === "ready" ? state.events.data : [];
         const events = [...currentEvents, result.event];
         return {
           events: { type: "ready", data: events },
@@ -555,6 +554,19 @@ const useSessionStore = create<SessionState & SessionActions>((set, get) => ({
       set({ currentTask: cancelled });
     } catch (error) {
       set({ actionError: getErrorMessage(error) });
+    }
+  },
+  loadSessionContext: async (sessionId) => {
+    set({ actionError: null, context: { type: "loading" } });
+    try {
+      const context = await fetchSessionContext(sessionId);
+      set({ context: { type: "ready", data: context } });
+    } catch (error) {
+      const message = getErrorMessage(error);
+      set({
+        actionError: message,
+        context: { type: "error", message },
+      });
     }
   },
 }));

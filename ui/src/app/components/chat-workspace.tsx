@@ -10,6 +10,7 @@ import type {
   AgentTaskItem,
   ChatMessage,
   LoadState,
+  SessionContextData,
   SessionEventItem,
   SessionFileItem,
   SessionItem,
@@ -18,6 +19,7 @@ import type {
 import type { FilePreviewData } from "@/types/files";
 
 import type { AgentPlan } from "@/types/planner";
+import ContextPanel from "@/components/context-panel";
 
 type ChatWorkspaceProps = {
   attachments: SessionFileItem[];
@@ -46,6 +48,8 @@ type ChatWorkspaceProps = {
   planning: boolean;
   executingPlan: boolean;
   task: AgentTaskItem | null;
+  context: LoadState<SessionContextData | null>;
+  onRefreshContext: () => void;
 };
 
 export default function ChatWorkspace({
@@ -75,6 +79,8 @@ export default function ChatWorkspace({
   planning,
   executingPlan,
   task,
+  context,
+  onRefreshContext,
 }: ChatWorkspaceProps) {
   return (
     <section className="grid grid-cols-[1fr_280px] gap-5 max-xl:grid-cols-1">
@@ -124,6 +130,7 @@ export default function ChatWorkspace({
           preview={filePreview}
           selectedFile={selectedFile}
         />
+        <ContextPanel context={context} disabled={!selectedSession} onRefresh={onRefreshContext} />
         <div className="rounded-md border border-slate-200 bg-white p-5">
           <h2 className="text-base font-semibold text-slate-950">事件记录</h2>
           <p className="mt-1 text-sm text-slate-500">本章先展示消息创建事件</p>

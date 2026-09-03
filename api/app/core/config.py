@@ -58,6 +58,15 @@ class Settings(BaseSettings):
     agent_task_stream: str = "agent:tasks"
     agent_task_poll_timeout_ms: int = 1000
 
+    # 上下文相关配置
+
+    # 表示最多放多少条最近消息。
+    context_message_limit: int = 8
+    # 表示最多参考多少条最近事件。注意，这里不是把事件原样返回给模型，而是先取最近事件，再按类型压缩成摘要。
+    context_event_limit: int = 20
+    # 表示单条消息最多保留多少字符。用户可能粘贴很长内容，如果不裁剪，一条消息就可能占满上下文。
+    context_max_message_chars: int = 1200
+
 
 @lru_cache
 def get_settings() -> Settings:

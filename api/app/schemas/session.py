@@ -97,3 +97,45 @@ class AgentTaskResponse(ResponseSchema):
     error: str | None
     created_at: datetime
     updated_at: datetime
+
+
+class ContextMessageResponse(ResponseSchema):
+    role: str
+    content: str
+    original_chars: int
+    truncated: bool
+    created_at: datetime
+
+
+class ContextEventSummaryResponse(ResponseSchema):
+    type: str
+    count: int
+    latest_at: datetime
+
+
+class ContextFileReferenceResponse(ResponseSchema):
+    id: UUID
+    name: str
+    content_type: str
+    size: int
+    usage_hint: str
+
+
+class ContextBudgetResponse(ResponseSchema):
+    message_limit: int
+    event_limit: int
+    max_message_chars: int
+    included_messages: int
+    omitted_messages: int
+    included_events: int
+    omitted_events: int
+    total_message_chars: int
+
+
+class SessionContextResponse(ResponseSchema):
+    session_id: UUID
+    summary: str
+    messages: list[ContextMessageResponse]
+    event_summaries: list[ContextEventSummaryResponse]
+    files: list[ContextFileReferenceResponse]
+    budget: ContextBudgetResponse

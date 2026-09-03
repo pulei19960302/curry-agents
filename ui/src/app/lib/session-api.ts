@@ -5,6 +5,7 @@ import type {
   ChatMessage,
   MessageCreateData,
   MessageListData,
+  SessionContextData,
   SessionEventItem,
   SessionEventListData,
   SessionFileItem,
@@ -17,9 +18,7 @@ import { PlanCreateData, PlanExecuteData } from "@/types/planner";
 import { StreamEvent } from "@/types/base";
 
 export function fetchSessions(): Promise<SessionItem[]> {
-  return requestApi<SessionListData>("/api/sessions").then(
-    (data) => data.items,
-  );
+  return requestApi<SessionListData>("/api/sessions").then((data) => data.items);
 }
 
 export function createSession(title: string): Promise<SessionItem> {
@@ -46,29 +45,24 @@ export function clearUnread(sessionId: string): Promise<SessionItem> {
 }
 
 export function fetchMessages(sessionId: string): Promise<ChatMessage[]> {
-  return requestApi<MessageListData>(
-    `/api/sessions/${sessionId}/messages`,
-  ).then((data) => data.items);
+  return requestApi<MessageListData>(`/api/sessions/${sessionId}/messages`).then(
+    (data) => data.items,
+  );
 }
 
 export function fetchEvents(sessionId: string): Promise<SessionEventItem[]> {
-  return requestApi<SessionEventListData>(
-    `/api/sessions/${sessionId}/events`,
-  ).then((data) => data.items);
+  return requestApi<SessionEventListData>(`/api/sessions/${sessionId}/events`).then(
+    (data) => data.items,
+  );
 }
 
-export function fetchSessionFiles(
-  sessionId: string,
-): Promise<SessionFileItem[]> {
-  return requestApi<SessionFileListData>(
-    `/api/sessions/${sessionId}/files`,
-  ).then((data) => data.items);
+export function fetchSessionFiles(sessionId: string): Promise<SessionFileItem[]> {
+  return requestApi<SessionFileListData>(`/api/sessions/${sessionId}/files`).then(
+    (data) => data.items,
+  );
 }
 
-export async function uploadSessionFile(
-  sessionId: string,
-  file: File,
-): Promise<SessionFileItem> {
+export async function uploadSessionFile(sessionId: string, file: File): Promise<SessionFileItem> {
   const formData = new FormData();
   formData.append("upload", file);
 
@@ -90,20 +84,14 @@ export async function uploadSessionFile(
   return payload.data;
 }
 
-export function sendMessage(
-  sessionId: string,
-  content: string,
-): Promise<MessageCreateData> {
+export function sendMessage(sessionId: string, content: string): Promise<MessageCreateData> {
   return requestApi<MessageCreateData>(`/api/sessions/${sessionId}/messages`, {
     method: "POST",
     body: JSON.stringify({ content }),
   });
 }
 
-export function createPlan(
-  sessionId: string,
-  task: string,
-): Promise<PlanCreateData> {
+export function createPlan(sessionId: string, task: string): Promise<PlanCreateData> {
   return requestApi<PlanCreateData>(`/api/sessions/${sessionId}/plan`, {
     method: "POST",
     body: JSON.stringify({ task }),
@@ -111,12 +99,9 @@ export function createPlan(
 }
 
 export function executePlan(sessionId: string): Promise<PlanExecuteData> {
-  return requestApi<PlanExecuteData>(
-    `/api/sessions/${sessionId}/plan/execute`,
-    {
-      method: "POST",
-    },
-  );
+  return requestApi<PlanExecuteData>(`/api/sessions/${sessionId}/plan/execute`, {
+    method: "POST",
+  });
 }
 
 export function startPlanTask(sessionId: string): Promise<AgentTaskItem> {
@@ -154,4 +139,8 @@ export async function sendMessageToStream(
   }
 
   await readSseStream(response, onEvent);
+}
+
+export function fetchSessionContext(sessionId: string): Promise<SessionContextData> {
+  return requestApi<SessionContextData>(`/api/sessions/${sessionId}/context`);
 }
