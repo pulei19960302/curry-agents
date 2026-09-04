@@ -2,7 +2,8 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
-      <module fileurl="file://$PROJECT_DIR$/.idea/curry-agent-api@1.iml" filepath="$PROJECT_DIR$/.idea/curry-agent-api@1.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/curry-agent-api.iml" filepath="$PROJECT_DIR$/.idea/curry-agent-api.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/curry-agents-sandbox.iml" filepath="$PROJECT_DIR$/.idea/curry-agents-sandbox.iml" />
     </modules>
   </component>
 </project>

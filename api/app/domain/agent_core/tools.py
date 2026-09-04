@@ -122,7 +122,6 @@ class ToolRegistry:
 
 
 # 用装饰器把普通函数变成 AgentTool
-
 def agent_tool(
         name: str,
         description: str,

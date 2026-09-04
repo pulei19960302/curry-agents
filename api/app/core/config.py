@@ -67,6 +67,10 @@ class Settings(BaseSettings):
     # 表示单条消息最多保留多少字符。用户可能粘贴很长内容，如果不裁剪，一条消息就可能占满上下文。
     context_max_message_chars: int = 1200
 
+    # 沙箱容器api相关
+    sandbox_api_base_url: str = "http://localhost:8100/api"
+    sandbox_api_timeout_seconds: float = 10.0
+
 
 @lru_cache
 def get_settings() -> Settings:
