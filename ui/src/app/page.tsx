@@ -16,8 +16,8 @@ import type { LoadState, StatusBadgeView } from "@/types/sessions";
 
 import type { ApiStatusData, DatabaseStatusData } from "@/types/api";
 import AgentThinkingPanel from "./components/agent-thinking-panel";
-import AgentCorePanel from "./components/agent-core-panel";
-import useAgentCore from "./hooks/use-agent-core";
+import type { SandboxInstanceData } from "@/types/sandbox";
+import { fetchCurrentSandbox, waitCurrentSandbox } from "./lib/sandbox-api";
 
 export default function Home() {
   const [apiStatus, setApiStatus] = useState<LoadState<ApiStatusData>>({
@@ -27,18 +27,23 @@ export default function Home() {
     type: "loading",
   });
 
+  const [sandboxStatus, setSandboxStatus] = useState<LoadState<SandboxInstanceData>>({
+    type: "loading",
+  });
+  const [sandboxRefreshing, setSandboxRefreshing] = useState(false);
+
   const workspace = useSessionWorkspace();
   const agentThinking = useAgentThinking();
 
-  const agentCore = useAgentCore();
-
   async function loadStatus() {
-    const [apiData, databaseData] = await Promise.all([
+    const [apiData, databaseData, sandboxData] = await Promise.all([
       requestApi<ApiStatusData>("/api/status"),
       requestApi<DatabaseStatusData>("/api/status/database"),
+      fetchCurrentSandbox(),
     ]);
     setApiStatus({ type: "ready", data: apiData });
     setDatabaseStatus({ type: "ready", data: databaseData });
+    setSandboxStatus({ type: "ready", data: sandboxData });
   }
 
   async function refreshAll() {
@@ -60,6 +65,19 @@ export default function Home() {
   async function refreshContext() {
     if (workspace.selectedSessionId) {
       await workspace.loadSessionContext(workspace.selectedSessionId);
+    }
+  }
+
+  async function refreshSandbox() {
+    setSandboxRefreshing(true);
+    try {
+      const sandbox = await waitCurrentSandbox();
+      setSandboxStatus({ type: "ready", data: sandbox });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "unknown error";
+      setSandboxStatus({ type: "error", message });
+    } finally {
+      setSandboxRefreshing(false);
     }
   }
 
@@ -119,17 +137,6 @@ export default function Home() {
               task={agentThinking.task}
             />
 
-            <AgentCorePanel
-              demo={agentCore.demo}
-              onRun={agentCore.runDemo}
-              onTaskChange={agentCore.setTask}
-              onToolChange={agentCore.setSelectedToolName}
-              running={agentCore.running}
-              selectedToolName={agentCore.selectedToolName}
-              task={agentCore.task}
-              tools={agentCore.tools}
-            />
-
             <ChatWorkspace
               attachments={workspace.attachments}
               clearingUnread={workspace.clearingUnread}
@@ -159,6 +166,9 @@ export default function Home() {
               onExecutePlan={workspace.executePlan}
               context={workspace.context}
               onRefreshContext={refreshContext}
+              onRefreshSandbox={refreshSandbox}
+              sandbox={sandboxStatus}
+              sandboxRefreshing={sandboxRefreshing}
             />
           </div>
         </section>

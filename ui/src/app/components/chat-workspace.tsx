@@ -20,6 +20,8 @@ import type { FilePreviewData } from "@/types/files";
 
 import type { AgentPlan } from "@/types/planner";
 import ContextPanel from "@/components/context-panel";
+import type { SandboxInstanceData } from "@/types/sandbox";
+import SandboxStatusPanel from "@/components/sandbox-status-panel";
 
 type ChatWorkspaceProps = {
   attachments: SessionFileItem[];
@@ -50,6 +52,9 @@ type ChatWorkspaceProps = {
   task: AgentTaskItem | null;
   context: LoadState<SessionContextData | null>;
   onRefreshContext: () => void;
+  onRefreshSandbox: () => void;
+  sandbox: LoadState<SandboxInstanceData>;
+  sandboxRefreshing: boolean;
 };
 
 export default function ChatWorkspace({
@@ -81,6 +86,9 @@ export default function ChatWorkspace({
   task,
   context,
   onRefreshContext,
+  onRefreshSandbox,
+  sandbox,
+  sandboxRefreshing,
 }: ChatWorkspaceProps) {
   return (
     <section className="grid grid-cols-[1fr_280px] gap-5 max-xl:grid-cols-1">
@@ -113,6 +121,11 @@ export default function ChatWorkspace({
       </div>
 
       <aside className="space-y-5">
+        <SandboxStatusPanel
+          onRefresh={onRefreshSandbox}
+          refreshing={sandboxRefreshing}
+          state={sandbox}
+        />
         <PlanPanel
           disabled={!selectedSession}
           executing={executingPlan}

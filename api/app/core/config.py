@@ -73,6 +73,12 @@ class Settings(BaseSettings):
 
     sandbox_shell_wait_timeout_seconds: float = 10.0
 
+    # 主 API 沙箱配置
+    docker_sandbox_id: str = "default"  # 主 API 识别当前沙箱实例的稳定 ID。
+    docker_sandbox_name: str = "curry-sandbox"  # 当前 Docker Compose 沙箱容器名。
+    docker_sandbox_wait_retries: int = 10  # 等待沙箱健康时最多重试几次。
+    docker_sandbox_wait_interval_seconds: float = 1.0  # 每次重试之间等待多久。
+
 
 @lru_cache
 def get_settings() -> Settings:
