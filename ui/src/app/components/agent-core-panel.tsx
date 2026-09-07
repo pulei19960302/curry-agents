@@ -1,10 +1,6 @@
-import { Bot, Braces, Hammer, Loader2, MessageCircle } from "lucide-react";
+import { Bot, Braces, Hammer, Loader2, MessageCircle, Terminal } from "lucide-react";
 
-import type {
-  AgentCoreDemoData,
-  MemoryMessage,
-  ToolDefinition,
-} from "@/types/agent-core";
+import type { AgentCoreDemoData, MemoryMessage, ToolDefinition } from "@/types/agent-core";
 
 import type { LoadState } from "@/types/sessions";
 
@@ -33,12 +29,9 @@ export default function AgentCorePanel({
     <section className="rounded-md border border-slate-200 bg-white p-5">
       <div className="flex items-start justify-between gap-4 max-lg:flex-col">
         <div>
-          <h2 className="text-base font-semibold text-slate-950">
-            Agent 记忆与工具协议
-          </h2>
+          <h2 className="text-base font-semibold text-slate-950">Agent 记忆与工具协议</h2>
           <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-500">
-            运行一次最小 Agent 调用，观察用户任务、工具选择、工具结果如何进入
-            Memory。
+            运行一次最小 Agent 调用，观察用户任务、工具选择、工具结果如何进入 Memory。
           </p>
         </div>
         <button
@@ -47,11 +40,7 @@ export default function AgentCorePanel({
           onClick={onRun}
           type="button"
         >
-          {running ? (
-            <Loader2 className="animate-spin" size={16} />
-          ) : (
-            <Bot size={16} />
-          )}
+          {running ? <Loader2 className="animate-spin" size={16} /> : <Bot size={16} />}
           运行演示
         </button>
       </div>
@@ -123,17 +112,12 @@ function ToolSchemaList({ state }: { state: LoadState<ToolDefinition[]> }) {
   return (
     <div className="grid gap-2">
       {state.data.map((tool) => (
-        <div
-          className="rounded-md border border-slate-200 bg-slate-50 p-3"
-          key={tool.name}
-        >
+        <div className="rounded-md border border-slate-200 bg-slate-50 p-3" key={tool.name}>
           <div className="flex items-center gap-2 text-sm font-medium text-slate-950">
             <Hammer size={16} aria-hidden="true" />
             {tool.name}
           </div>
-          <p className="mt-1 text-xs leading-5 text-slate-500">
-            {tool.description}
-          </p>
+          <p className="mt-1 text-xs leading-5 text-slate-500">{tool.description}</p>
           <div className="mt-2 flex flex-wrap gap-2">
             {tool.parameters.map((parameter) => (
               <code
@@ -170,18 +154,40 @@ function DemoResult({ state }: { state: LoadState<AgentCoreDemoData | null> }) {
             <Braces size={16} aria-hidden="true" />
             工具结果
           </div>
-          <p className="mt-2 text-sm text-slate-500">
-            {state.data.tool_result.tool_name}
-          </p>
-          <pre className="mt-3 whitespace-pre-wrap rounded-md bg-white p-3 text-xs leading-5 text-slate-700">
-            {state.data.tool_result.output}
-          </pre>
+          <p className="mt-2 text-sm text-slate-500">{state.data.tool_result.tool_name}</p>
+          <ToolResultOutput
+            output={state.data.tool_result.output}
+            toolName={state.data.tool_result.tool_name}
+          />
         </div>
         <div className="rounded-md border border-slate-200 bg-slate-50 p-4 text-sm leading-6 text-slate-600">
           {state.data.next_step}
         </div>
       </div>
     </div>
+  );
+}
+
+// 按工具类型展示不同结果形态 =====================
+function ToolResultOutput({ output, toolName }: { output: string; toolName: string }) {
+  if (toolName.startsWith("shell_")) {
+    return (
+      <div className="mt-3 rounded-md border border-slate-800 bg-slate-950">
+        <div className="flex h-9 items-center gap-2 border-b border-slate-800 px-3 text-xs font-medium text-slate-300">
+          <Terminal size={14} aria-hidden="true" />
+          Sandbox Shell
+        </div>
+        <pre className="max-h-80 overflow-auto p-3 text-xs leading-5 whitespace-pre-wrap text-emerald-100">
+          {output}
+        </pre>
+      </div>
+    );
+  }
+
+  return (
+    <pre className="mt-3 rounded-md bg-white p-3 text-xs leading-5 whitespace-pre-wrap text-slate-700">
+      {output}
+    </pre>
   );
 }
 
@@ -196,12 +202,12 @@ function MemoryTimeline({ messages }: { messages: MemoryMessage[] }) {
         {messages.map((message) => (
           <div className="rounded-md bg-white p-3" key={message.id}>
             <div className="flex items-center justify-between gap-2">
-              <span className="text-xs font-semibold uppercase text-slate-500">
+              <span className="text-xs font-semibold text-slate-500 uppercase">
                 {message.role}
                 {message.name ? ` / ${message.name}` : ""}
               </span>
             </div>
-            <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-700">
+            <p className="mt-2 text-sm leading-6 whitespace-pre-wrap text-slate-700">
               {message.content}
             </p>
           </div>
@@ -211,13 +217,7 @@ function MemoryTimeline({ messages }: { messages: MemoryMessage[] }) {
   );
 }
 
-function SmallState({
-  text,
-  tone = "muted",
-}: {
-  text: string;
-  tone?: "muted" | "error";
-}) {
+function SmallState({ text, tone = "muted" }: { text: string; tone?: "muted" | "error" }) {
   return (
     <div
       className={

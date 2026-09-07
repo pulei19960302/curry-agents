@@ -71,6 +71,8 @@ class Settings(BaseSettings):
     sandbox_api_base_url: str = "http://localhost:8100/api"
     sandbox_api_timeout_seconds: float = 10.0
 
+    sandbox_shell_wait_timeout_seconds: float = 10.0
+
 
 @lru_cache
 def get_settings() -> Settings:

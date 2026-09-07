@@ -19,11 +19,14 @@ class Settings(BaseSettings):
     supervisor_enabled: bool = False  # 是否启用真实 Supervisor 查询
     supervisor_services: list[str] = ["sandbox-api"]  # 希望沙箱管理的服务名列表。本章先放 sandbox-api
 
-    # 文件上传相关
-    workspace_dir: str = "workspace"
+    # 文件上传下载
     max_file_read_bytes: int = 64 * 1024  # 读取文件时最多返回多少字节，避免一次读取超大文件
     max_file_write_bytes: int = 512 * 1024  # 写文件最大字节
     max_upload_size: int = 10 * 1024 * 1024  # 上传最大
+
+    # shell 相关
+    shell_output_limit: int = 64 * 1024
+    shell_default_timeout_seconds: float = 10.0
 
     model_config = SettingsConfigDict(
         env_file=".env",
