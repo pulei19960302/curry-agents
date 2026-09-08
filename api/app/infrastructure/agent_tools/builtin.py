@@ -1,5 +1,6 @@
 # 定义一个文本摘要工具
 from app.domain.agent_core.tools import agent_tool, ToolRegistry
+from app.infrastructure.agent_tools.sandbox_browser import register_sandbox_browser_tools
 from app.infrastructure.agent_tools.sandbox_file import register_sandbox_file_tools
 from app.infrastructure.agent_tools.sandbox_shell import register_sandbox_shell_tools
 
@@ -68,7 +69,9 @@ def build_builtin_tool_registry() -> ToolRegistry:
     registry.register(extract_keywords)
     registry.register(draft_plan)
 
-    # 注册
-    register_sandbox_file_tools(registry)
-    register_sandbox_shell_tools(registry)
+    # 注册 沙箱里面的tools
+    register_sandbox_file_tools(registry)  # 文件
+    register_sandbox_shell_tools(registry)  # shell
+    register_sandbox_browser_tools(registry)  # 浏览器
+
     return registry
