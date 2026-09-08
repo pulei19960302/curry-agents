@@ -20,6 +20,8 @@ COPY --from=ghcr.io/astral-sh/uv:0.11.15 /uv /uvx /bin/
 COPY pyproject.toml uv.lock README.md ./
 RUN uv sync --frozen --no-dev --no-install-project
 
+RUN uv run playwright install --with-deps chromium
+
 COPY app ./app
 
 RUN uv sync --frozen --no-dev

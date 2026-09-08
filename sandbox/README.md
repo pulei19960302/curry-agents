@@ -1,0 +1,1 @@
+/api/browser/status /api/browser/session /api/browser/page/navigate /api/browser/page /api/browser/page/screenshot
