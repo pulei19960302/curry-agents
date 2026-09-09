@@ -4,7 +4,8 @@ from app.core.config import settings
 from app.infrastructure.sandbox.manager import DockerSandboxManager
 from app.schemas.common import ApiResponse
 from app.schemas.sandbox import SandboxInstanceResponse, SandboxWaitRequest, SandboxFileReadResponse, \
-    SandboxFileWriteResponse, SandboxFileWriteRequest, SandboxShellRunResponse, SandboxShellRunRequest
+    SandboxFileWriteResponse, SandboxFileWriteRequest, SandboxShellRunResponse, SandboxShellRunRequest, \
+    SandboxVncStatusResponse
 
 router = APIRouter(prefix="/sandboxes", tags=["sandboxes"])
 
@@ -93,3 +94,10 @@ async def run_sandbox_shell(
             )
         )
     )
+
+
+@router.get("/current/vnc/status", response_model=ApiResponse[SandboxVncStatusResponse])
+async def get_vnc_status(
+        manager: DockerSandboxManager = Depends(build_sandbox_manager),
+) -> ApiResponse[SandboxVncStatusResponse]:
+    return ApiResponse(data=SandboxVncStatusResponse.model_validate(manager.get_vnc_status()))

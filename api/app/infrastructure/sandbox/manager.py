@@ -5,6 +5,7 @@ from time import sleep
 from app.core.config import Settings
 from app.infrastructure.sandbox.file_client import SandboxFileClient
 from app.infrastructure.sandbox.shell_client import SandboxShellClient
+from app.infrastructure.sandbox.vnc_client import SandboxVncClient
 
 
 @dataclass(slots=True)
@@ -28,6 +29,11 @@ class DockerSandboxManager:
         )
 
         self.shell_client = SandboxShellClient(
+            base_url=settings.sandbox_api_base_url,
+            timeout_seconds=settings.sandbox_api_timeout_seconds
+        )
+
+        self.vnc_client = SandboxVncClient(
             base_url=settings.sandbox_api_base_url,
             timeout_seconds=settings.sandbox_api_timeout_seconds
         )
@@ -78,6 +84,10 @@ class DockerSandboxManager:
             session_id=str(started["id"]),
             timeout_seconds=timeout_seconds or self.settings.sandbox_shell_wait_timeout_seconds,
         )
+
+    # 获取vnc相关信息
+    def get_vnc_status(self) -> dict:
+        return self.vnc_client.status()
 
     # 健康检查辅助方法
     def _is_healthy(self) -> bool:

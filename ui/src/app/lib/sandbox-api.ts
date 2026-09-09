@@ -1,5 +1,6 @@
 import { requestApi } from "./api";
 import type { SandboxInstanceData } from "@/types/sandbox";
+import { VncStatusData } from "@/types/vnc";
 
 // 读取当前任务沙箱状态
 export function fetchCurrentSandbox(): Promise<SandboxInstanceData> {
@@ -15,4 +16,9 @@ export function waitCurrentSandbox(): Promise<SandboxInstanceData> {
       interval_seconds: 1,
     }),
   });
+}
+
+// vnc 的状态检查
+export function fetchVncStatus(): Promise<VncStatusData> {
+  return requestApi<VncStatusData>("/api/sandboxes/current/vnc/status");
 }

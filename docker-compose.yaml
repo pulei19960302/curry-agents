@@ -161,18 +161,31 @@ services:
 
       # browser
       BROWSER_ENABLED: ${SANDBOX_BROWSER_ENABLED:-true}
-      BROWSER_HEADLESS: ${SANDBOX_BROWSER_HEADLESS:-true}
+      BROWSER_HEADLESS: ${SANDBOX_BROWSER_HEADLESS:-false}
       BROWSER_VIEWPORT_WIDTH: ${SANDBOX_BROWSER_VIEWPORT_WIDTH:-1280}
       BROWSER_VIEWPORT_HEIGHT: ${SANDBOX_BROWSER_VIEWPORT_HEIGHT:-720}
       BROWSER_DEFAULT_TIMEOUT_MS: ${SANDBOX_BROWSER_DEFAULT_TIMEOUT_MS:-15000}
       BROWSER_SCREENSHOT_FULL_PAGE: ${SANDBOX_BROWSER_SCREENSHOT_FULL_PAGE:-true}
+
+      # vnc 配置
+      VNC_ENABLED: ${SANDBOX_VNC_ENABLED:-true}
+      VNC_DISPLAY: ${SANDBOX_VNC_DISPLAY:-:99}
+      VNC_PORT: ${SANDBOX_VNC_PORT:-5900}
+      VNC_WEB_PORT: ${SANDBOX_VNC_WEB_PORT:-6080}
+      VNC_IFRAME_PATH: ${SANDBOX_VNC_IFRAME_PATH:-/sandbox-vnc/vnc.html?autoconnect=1&resize=scale&path=sandbox-vnc/websockify}
+      DISPLAY: ${SANDBOX_VNC_DISPLAY:-:99}
+
     volumes:
       - sandbox_workspace:/workspace
     expose:
       - "8100"
+      - "5900"
+      - "6080"
 
     ports:
       - "8100:8100"
+      - "5900:5900"
+      - "6080:6080"
 
     networks:
       - curry-network
@@ -187,12 +200,16 @@ services:
     build:
       context: ./ui
       args:
-        API_PROXY_URL: ${UI_API_PROXY_URL:-http://api:8000/api/:path*}
+        # UI 的 /api 请求先交给 Nginx，再由 Nginx 路由到主 API。
+        API_PROXY_URL: ${UI_API_PROXY_URL:-http://nginx/api/:path*}
+        # 浏览器访问 VNC WebSocket 时使用的 Nginx 公共入口。
+        NEXT_PUBLIC_VNC_PROXY_ORIGIN: ${UI_VNC_PROXY_ORIGIN:-http://localhost:8088}
         NPM_REGISTRY: ${NPM_REGISTRY:-https://registry.npmmirror.com}
     container_name: curry-ui
     restart: unless-stopped
     environment:
-      API_PROXY_URL: ${UI_API_PROXY_URL:-http://api:8000/api/:path*}
+      API_PROXY_URL: ${UI_API_PROXY_URL:-http://nginx/api/:path*}
+      NEXT_PUBLIC_VNC_PROXY_ORIGIN: ${UI_VNC_PROXY_ORIGIN:-http://localhost:8088}
       NEXT_TELEMETRY_DISABLED: 1
     ports:
       - "${UI_PORT:-3000}:3000"

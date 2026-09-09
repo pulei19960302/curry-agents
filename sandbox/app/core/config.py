@@ -36,6 +36,15 @@ class Settings(BaseSettings):
     browser_default_timeout_ms: int = 15_000  # 页面操作默认超时时间，避免网页一直加载导致请求卡住
     browser_screenshot_full_page: bool = True  # 截图时是否默认截完整页面
 
+    # ----- VNC / noVNC：把沙箱中的浏览器画面暴露成可嵌入的远程桌面 -----
+    vnc_enabled: bool = True  # 是否开启vnc远程
+    vnc_display: str = ":99"  # Xvfb 虚拟显示器编号。浏览器窗口会画到这个显示器里。
+    vnc_port: int = 5900  # x11vnc 容器内端口
+    vnc_web_port: int = 6080  # websockify/noVNC 容器内端口
+    vnc_iframe_path: str = (
+        "/sandbox-vnc/vnc.html?autoconnect=1&resize=scale&path=sandbox-vnc/websockify"
+    )  # 兼容字段
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

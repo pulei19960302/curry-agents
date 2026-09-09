@@ -22,6 +22,8 @@ import type { AgentPlan } from "@/types/planner";
 import ContextPanel from "@/components/context-panel";
 import type { SandboxInstanceData } from "@/types/sandbox";
 import SandboxStatusPanel from "@/components/sandbox-status-panel";
+import { VncStatusData } from "@/types/vnc";
+import VncPanel from "@/components/vnc-panel";
 
 type ChatWorkspaceProps = {
   attachments: SessionFileItem[];
@@ -55,6 +57,8 @@ type ChatWorkspaceProps = {
   onRefreshSandbox: () => void;
   sandbox: LoadState<SandboxInstanceData>;
   sandboxRefreshing: boolean;
+  onRefreshVnc: () => void;
+  vnc: LoadState<VncStatusData>;
 };
 
 export default function ChatWorkspace({
@@ -89,6 +93,8 @@ export default function ChatWorkspace({
   onRefreshSandbox,
   sandbox,
   sandboxRefreshing,
+  onRefreshVnc,
+  vnc,
 }: ChatWorkspaceProps) {
   return (
     <section className="grid grid-cols-[1fr_280px] gap-5 max-xl:grid-cols-1">
@@ -126,6 +132,7 @@ export default function ChatWorkspace({
           refreshing={sandboxRefreshing}
           state={sandbox}
         />
+        <VncPanel onRefresh={onRefreshVnc} state={vnc} />
         <PlanPanel
           disabled={!selectedSession}
           executing={executingPlan}

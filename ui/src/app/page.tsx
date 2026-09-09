@@ -17,7 +17,8 @@ import type { LoadState, StatusBadgeView } from "@/types/sessions";
 import type { ApiStatusData, DatabaseStatusData } from "@/types/api";
 import AgentThinkingPanel from "./components/agent-thinking-panel";
 import type { SandboxInstanceData } from "@/types/sandbox";
-import { fetchCurrentSandbox, waitCurrentSandbox } from "./lib/sandbox-api";
+import { fetchCurrentSandbox, fetchVncStatus, waitCurrentSandbox } from "./lib/sandbox-api";
+import type { VncStatusData } from "@/types/vnc";
 
 export default function Home() {
   const [apiStatus, setApiStatus] = useState<LoadState<ApiStatusData>>({
@@ -32,14 +33,19 @@ export default function Home() {
   });
   const [sandboxRefreshing, setSandboxRefreshing] = useState(false);
 
+  const [vncStatus, setVncStatus] = useState<LoadState<VncStatusData>>({
+    type: "loading",
+  });
+
   const workspace = useSessionWorkspace();
   const agentThinking = useAgentThinking();
 
   async function loadStatus() {
-    const [apiData, databaseData, sandboxData] = await Promise.all([
+    const [apiData, databaseData, sandboxData, vncStatus] = await Promise.all([
       requestApi<ApiStatusData>("/api/status"),
       requestApi<DatabaseStatusData>("/api/status/database"),
       fetchCurrentSandbox(),
+      refreshVnc(),
     ]);
     setApiStatus({ type: "ready", data: apiData });
     setDatabaseStatus({ type: "ready", data: databaseData });
@@ -78,6 +84,17 @@ export default function Home() {
       setSandboxStatus({ type: "error", message });
     } finally {
       setSandboxRefreshing(false);
+    }
+  }
+
+  async function refreshVnc() {
+    setVncStatus({ type: "loading" });
+    try {
+      const vnc = await fetchVncStatus();
+      setVncStatus({ type: "ready", data: vnc });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "unknown error";
+      setVncStatus({ type: "error", message });
     }
   }
 
@@ -169,6 +186,8 @@ export default function Home() {
               onRefreshSandbox={refreshSandbox}
               sandbox={sandboxStatus}
               sandboxRefreshing={sandboxRefreshing}
+              vnc={vncStatus}
+              onRefreshVnc={refreshVnc}
             />
           </div>
         </section>

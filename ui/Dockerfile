@@ -22,9 +22,12 @@ FROM base AS builder
 
 WORKDIR /app
 
-ARG API_PROXY_URL=http://127.0.0.1:8000/api/:path*
+# Docker 内 UI 不直连主 API，而是统一经 Nginx 转发。
+ARG API_PROXY_URL=http://nginx/api/:path*
+ARG NEXT_PUBLIC_VNC_PROXY_ORIGIN=http://localhost:8088
 
 ENV API_PROXY_URL=${API_PROXY_URL}
+ENV NEXT_PUBLIC_VNC_PROXY_ORIGIN=${NEXT_PUBLIC_VNC_PROXY_ORIGIN}
 
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
