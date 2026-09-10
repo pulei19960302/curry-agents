@@ -4,7 +4,7 @@ import ChatInput from "./chat-input";
 import EventTimeline from "./event-timeline";
 import MessageTimeline from "./message-timeline";
 import SessionControlBar from "./session-control-bar";
-import SessionFilePanel from "./session-file-panel";
+import ToolPreviewPanel from "./tool-preview-panel";
 import PlanPanel from "./plan-panel";
 import type {
   AgentTaskItem,
@@ -21,9 +21,7 @@ import type { FilePreviewData } from "@/types/files";
 import type { AgentPlan } from "@/types/planner";
 import ContextPanel from "@/components/context-panel";
 import type { SandboxInstanceData } from "@/types/sandbox";
-import SandboxStatusPanel from "@/components/sandbox-status-panel";
 import { VncStatusData } from "@/types/vnc";
-import VncPanel from "@/components/vnc-panel";
 
 type ChatWorkspaceProps = {
   attachments: SessionFileItem[];
@@ -106,6 +104,19 @@ export default function ChatWorkspace({
           selectedSession={selectedSession}
           stopping={stopping}
         />
+        <ToolPreviewPanel
+          events={events}
+          files={files}
+          onPreviewFile={onPreviewFile}
+          onRefreshSandbox={onRefreshSandbox}
+          onRefreshVnc={onRefreshVnc}
+          onSelectFile={onSelectFile}
+          preview={filePreview}
+          sandbox={sandbox}
+          sandboxRefreshing={sandboxRefreshing}
+          selectedFile={selectedFile}
+          vnc={vnc}
+        />
         <MessageTimeline state={messages} />
         <div className="space-y-3 border-t border-slate-200 bg-slate-50 p-4">
           <AttachmentUpload
@@ -127,12 +138,6 @@ export default function ChatWorkspace({
       </div>
 
       <aside className="space-y-5">
-        <SandboxStatusPanel
-          onRefresh={onRefreshSandbox}
-          refreshing={sandboxRefreshing}
-          state={sandbox}
-        />
-        <VncPanel onRefresh={onRefreshVnc} state={vnc} />
         <PlanPanel
           disabled={!selectedSession}
           executing={executingPlan}
@@ -143,13 +148,7 @@ export default function ChatWorkspace({
           planning={planning}
           task={task}
         />
-        <SessionFilePanel
-          files={files}
-          onPreview={onPreviewFile}
-          onSelectFile={onSelectFile}
-          preview={filePreview}
-          selectedFile={selectedFile}
-        />
+
         <ContextPanel context={context} disabled={!selectedSession} onRefresh={onRefreshContext} />
         <div className="rounded-md border border-slate-200 bg-white p-5">
           <h2 className="text-base font-semibold text-slate-950">事件记录</h2>

@@ -79,6 +79,13 @@ class Settings(BaseSettings):
     docker_sandbox_wait_retries: int = 10  # 等待沙箱健康时最多重试几次。
     docker_sandbox_wait_interval_seconds: float = 1.0  # 每次重试之间等待多久。
 
+    #  SearchTool：外部网页搜索配置 -
+    bing_search_api_key: str = ""
+    bing_search_endpoint: str = "https://api.bing.microsoft.com"
+    bing_search_market: str = "zh-CN"
+    search_timeout_seconds: float = 10.0
+    search_max_results: int = 5
+
 
 @lru_cache
 def get_settings() -> Settings:

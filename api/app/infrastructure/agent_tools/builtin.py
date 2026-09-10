@@ -3,6 +3,7 @@ from app.domain.agent_core.tools import agent_tool, ToolRegistry
 from app.infrastructure.agent_tools.sandbox_browser import register_sandbox_browser_tools
 from app.infrastructure.agent_tools.sandbox_file import register_sandbox_file_tools
 from app.infrastructure.agent_tools.sandbox_shell import register_sandbox_shell_tools
+from app.infrastructure.agent_tools.search import register_search_tools
 
 
 # 一个agent_tool 工具
@@ -73,5 +74,7 @@ def build_builtin_tool_registry() -> ToolRegistry:
     register_sandbox_file_tools(registry)  # 文件
     register_sandbox_shell_tools(registry)  # shell
     register_sandbox_browser_tools(registry)  # 浏览器
+
+    register_search_tools(registry)  # search
 
     return registry

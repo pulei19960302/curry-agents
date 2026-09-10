@@ -7,7 +7,6 @@ from app.core.exceptions import AppException
 from app.domain.sessions.entities import SessionEvent, SessionEventType, SessionStatus
 from app.infrastructure.agent_tools.builtin import build_builtin_tool_registry
 
-
 # URL 可能紧接在中文句子中，例如："访问 https://www.baidu.com，等待加载"。
 # 因此不能只按空白分割；匹配到中文标点、空白或常见句末符号时就停止。
 _URL_PATTERN = re.compile(
@@ -251,7 +250,11 @@ class ReActAgentService:
         step_text = f"{title} {description} {expected_output}".strip()
         text = f"{goal} {step_text}".strip()
 
-        if self._needs_browser_screenshot(text):
+        if self._needs_search(text):
+            tool = self.registry.get("search_web")
+            arguments = {"query": self._extract_search_query(text), "count": 5}
+
+        elif self._needs_browser_screenshot(text):
             # 包含截图意图时，第一步优先打开页面；其余步骤再截取当前页面。
             # 这是简化策略，不会记录某个 URL 是否确实已经被打开。
             if index == 1 or (
@@ -303,6 +306,28 @@ class ReActAgentService:
         return any(keyword in text for keyword in keywords)
 
     @staticmethod
+    def _needs_search(text: str) -> bool:
+        """判断当前步骤是否需要搜索公开网页。
+
+        先用关键词规则选择 SearchTool。后续接入更完整的模型
+        工具选择后，这里会逐步退化成兜底逻辑。
+        """
+        keywords = ["搜索", "检索", "查找", "查询", "资料", "新闻", "最新"]
+        return any(keyword in text for keyword in keywords)
+
+    @staticmethod
+    def _extract_search_query(text: str) -> str:
+        """从计划文本中提取搜索关键词。
+
+        现在的计划步骤还不是严格工具参数，所以先去掉常见动作词，
+        保留用户真正想查的内容。
+        """
+        clean_text = " ".join(text.split())
+        for keyword in ["搜索", "检索", "查找", "查询", "一下", "资料"]:
+            clean_text = clean_text.replace(keyword, " ")
+        return " ".join(clean_text.split())[:120] or text[:120]
+
+    @staticmethod
     def _extract_url(text: str) -> str:
         """从计划步骤中提取 URL，没有 URL 时使用稳定示例站点。
 
@@ -332,7 +357,6 @@ class ReActAgentService:
             if parsed.scheme in {"http", "https"} and parsed.netloc:
                 return normalized_url
         return "https://example.com"
-
 
 # 示例计划：
 # plan = {
