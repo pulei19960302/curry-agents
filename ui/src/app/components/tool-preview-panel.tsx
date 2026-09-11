@@ -54,7 +54,7 @@ type SearchResultsPayload = {
   }>;
 };
 
-// ===================== 第1步：统一展示工具调用、文件和沙箱观察 =====================
+// 统一展示工具调用、文件和沙箱观察
 export default function ToolPreviewPanel({
   events,
   files,
