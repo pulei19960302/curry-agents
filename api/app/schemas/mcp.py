@@ -49,3 +49,39 @@ class McpToolCallResponse(ResponseSchema):
     arguments: dict[str, Any]
     content: list[dict[str, str]]  # MCP 工具结果通常用 content 数组承载。
     steps: list[McpCallStepResponse]
+
+
+# 真实的
+class McpServerResponse(ResponseSchema):
+    name: str  # 配置文件中的 server 名称。
+    enabled: bool  # 是否启用该 Server。
+    transport: str  # demo、stdio、sse 或 streamable_http。
+    description: str  # 给前端和排查时看的说明。
+
+
+class McpServerListResponse(ResponseSchema):
+    items: list[McpServerResponse]
+
+
+class McpDiscoveredToolResponse(ResponseSchema):
+    server_name: str  # 工具来自哪个 MCP Server。
+    name: str  # MCP 工具名。
+    description: str  # MCP Server 返回的工具说明。
+    input_schema: dict[str, Any]  # MCP 工具参数 JSON Schema。
+
+
+class McpDiscoveredToolListResponse(ResponseSchema):
+    items: list[McpDiscoveredToolResponse]
+
+
+class McpToolInvokeRequest(ResponseSchema):
+    server_name: str = Field(min_length=1, max_length=100)
+    tool_name: str = Field(min_length=1, max_length=100)
+    arguments: dict[str, Any] = Field(default_factory=dict)
+
+
+class McpToolInvokeResponse(ResponseSchema):
+    server_name: str
+    tool_name: str
+    arguments: dict[str, Any]
+    content: list[dict[str, Any]]

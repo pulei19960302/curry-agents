@@ -128,6 +128,8 @@ services:
       BING_SEARCH_MARKET: ${BING_SEARCH_MARKET:-zh-CN}
       SEARCH_TIMEOUT_SECONDS: ${SEARCH_TIMEOUT_SECONDS:-10}
       SEARCH_MAX_RESULTS: ${SEARCH_MAX_RESULTS:-5}
+      # mcp 配置文件
+      MCP_CONFIG_PATH: ${MCP_CONFIG_PATH:-config/mcp.yaml}
 
     ports:
       - "${API_PORT:-8000}:8000"

@@ -19,6 +19,8 @@ import AgentThinkingPanel from "./components/agent-thinking-panel";
 import type { SandboxInstanceData } from "@/types/sandbox";
 import { fetchCurrentSandbox, fetchVncStatus, waitCurrentSandbox } from "./lib/sandbox-api";
 import type { VncStatusData } from "@/types/vnc";
+import { McpServerListData, McpToolListData } from "@/types/mcp";
+import { fetchMcpServers, fetchMcpTools } from "@/lib/mcp-api";
 
 export default function Home() {
   const [apiStatus, setApiStatus] = useState<LoadState<ApiStatusData>>({
@@ -37,19 +39,29 @@ export default function Home() {
     type: "loading",
   });
 
+  const [mcpServers, setMcpServers] = useState<LoadState<McpServerListData>>({ type: "loading" });
+  const [mcpTools, setMcpTools] = useState<LoadState<McpToolListData>>({
+    type: "loading",
+  });
+
   const workspace = useSessionWorkspace();
   const agentThinking = useAgentThinking();
 
   async function loadStatus() {
-    const [apiData, databaseData, sandboxData, vncStatus] = await Promise.all([
-      requestApi<ApiStatusData>("/api/status"),
-      requestApi<DatabaseStatusData>("/api/status/database"),
-      fetchCurrentSandbox(),
-      refreshVnc(),
-    ]);
+    const [apiData, databaseData, sandboxData, vncStatus, mcpServerData, mcpToolData] =
+      await Promise.all([
+        requestApi<ApiStatusData>("/api/status"),
+        requestApi<DatabaseStatusData>("/api/status/database"),
+        fetchCurrentSandbox(),
+        refreshVnc(),
+        fetchMcpServers(),
+        fetchMcpTools(),
+      ]);
     setApiStatus({ type: "ready", data: apiData });
     setDatabaseStatus({ type: "ready", data: databaseData });
     setSandboxStatus({ type: "ready", data: sandboxData });
+    setMcpServers({ type: "ready", data: mcpServerData });
+    setMcpTools({ type: "ready", data: mcpToolData });
   }
 
   async function refreshAll() {
@@ -65,6 +77,20 @@ export default function Home() {
         current.type === "loading" ? { type: "error", message } : current,
       );
       workspace.setActionError(message);
+    }
+  }
+
+  async function refreshMcp() {
+    setMcpServers({ type: "loading" });
+    setMcpTools({ type: "loading" });
+    try {
+      const [servers, tools] = await Promise.all([fetchMcpServers(), fetchMcpTools()]);
+      setMcpServers({ type: "ready", data: servers });
+      setMcpTools({ type: "ready", data: tools });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "unknown error";
+      setMcpServers({ type: "error", message });
+      setMcpTools({ type: "error", message });
     }
   }
 
@@ -188,6 +214,9 @@ export default function Home() {
               sandboxRefreshing={sandboxRefreshing}
               vnc={vncStatus}
               onRefreshVnc={refreshVnc}
+              onRefreshMcp={refreshMcp}
+              mcpServers={mcpServers}
+              mcpTools={mcpTools}
             />
           </div>
         </section>

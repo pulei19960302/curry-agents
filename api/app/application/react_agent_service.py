@@ -250,7 +250,15 @@ class ReActAgentService:
         step_text = f"{title} {description} {expected_output}".strip()
         text = f"{goal} {step_text}".strip()
 
-        if self._needs_search(text):
+        if self._needs_mcp(text):
+            tool = self.registry.get("mcp_call")
+            arguments = {
+                "server_name": "demo",
+                "tool_name": "mcp_echo",
+                "arguments_json": '{"text":"来自 MCP 工具的演示响应"}',
+            }
+
+        elif self._needs_search(text):
             tool = self.registry.get("search_web")
             arguments = {"query": self._extract_search_query(text), "count": 5}
 
@@ -303,6 +311,13 @@ class ReActAgentService:
         """根据中文关键词判断文本是否要求截取当前浏览器页面。"""
 
         keywords = ["截图", "截屏", "页面截图", "观察页面"]
+        return any(keyword in text for keyword in keywords)
+
+    @staticmethod
+    def _needs_mcp(text: str) -> bool:
+        """判断当前步骤是否需要调用 MCP 工具。"""
+
+        keywords = ["MCP", "mcp", "外部工具", "外部系统"]
         return any(keyword in text for keyword in keywords)
 
     @staticmethod

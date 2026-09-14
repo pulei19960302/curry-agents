@@ -22,6 +22,7 @@ import type { AgentPlan } from "@/types/planner";
 import ContextPanel from "@/components/context-panel";
 import type { SandboxInstanceData } from "@/types/sandbox";
 import { VncStatusData } from "@/types/vnc";
+import { McpServerListData, McpToolListData } from "@/types/mcp";
 
 type ChatWorkspaceProps = {
   attachments: SessionFileItem[];
@@ -57,6 +58,9 @@ type ChatWorkspaceProps = {
   sandboxRefreshing: boolean;
   onRefreshVnc: () => void;
   vnc: LoadState<VncStatusData>;
+  onRefreshMcp: () => void;
+  mcpServers: LoadState<McpServerListData>;
+  mcpTools: LoadState<McpToolListData>;
 };
 
 export default function ChatWorkspace({
@@ -93,6 +97,9 @@ export default function ChatWorkspace({
   sandboxRefreshing,
   onRefreshVnc,
   vnc,
+  onRefreshMcp,
+  mcpServers,
+  mcpTools,
 }: ChatWorkspaceProps) {
   return (
     <section className="grid grid-cols-[1fr_280px] gap-5 max-xl:grid-cols-1">
@@ -116,6 +123,9 @@ export default function ChatWorkspace({
           sandboxRefreshing={sandboxRefreshing}
           selectedFile={selectedFile}
           vnc={vnc}
+          onRefreshMcp={onRefreshMcp}
+          mcpServers={mcpServers}
+          mcpTools={mcpTools}
         />
         <MessageTimeline state={messages} />
         <div className="space-y-3 border-t border-slate-200 bg-slate-50 p-4">

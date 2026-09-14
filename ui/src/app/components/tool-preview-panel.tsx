@@ -14,18 +14,23 @@ import { useMemo, useState } from "react";
 import SandboxStatusPanel from "./sandbox-status-panel";
 import SessionFilePanel from "./session-file-panel";
 import VncPanel from "./vnc-panel";
+import McpPanel from "@/components/mcp_panel";
 import { formatDateTime } from "@/lib/format";
 import type { VncStatusData } from "@/types/vnc";
 import { LoadState, SessionEventItem, SessionFileItem } from "@/types/sessions";
 import { FilePreviewData } from "@/types/files";
 import { SandboxInstanceData } from "@/types/sandbox";
+import { McpServerListData, McpToolListData } from "@/types/mcp";
 
 type ToolPreviewPanelProps = {
   events: LoadState<SessionEventItem[]>; // 会话事件列表，用来提取最近工具调用。
   files: LoadState<SessionFileItem[]>; // 会话文件列表，文件工具和附件都会沉淀到这里。
+  mcpServers: LoadState<McpServerListData>;
+  mcpTools: LoadState<McpToolListData>;
   onPreviewFile: (fileId: string) => void;
   onRefreshSandbox: () => void;
   onRefreshVnc: () => void;
+  onRefreshMcp: () => void;
   onSelectFile: (file: SessionFileItem) => void;
   preview: LoadState<FilePreviewData | null>;
   sandbox: LoadState<SandboxInstanceData>; // 当前任务沙箱状态。
@@ -54,6 +59,14 @@ type SearchResultsPayload = {
   }>;
 };
 
+type McpToolResultPayload = {
+  kind: "mcp_tool_result";
+  server_name: string;
+  tool_name: string;
+  arguments: Record<string, unknown>;
+  content: Array<Record<string, unknown>>;
+};
+
 // 统一展示工具调用、文件和沙箱观察
 export default function ToolPreviewPanel({
   events,
@@ -61,12 +74,15 @@ export default function ToolPreviewPanel({
   onPreviewFile,
   onRefreshSandbox,
   onRefreshVnc,
+  onRefreshMcp,
   onSelectFile,
   preview,
   sandbox,
   sandboxRefreshing,
   selectedFile,
   vnc,
+  mcpServers,
+  mcpTools,
 }: ToolPreviewPanelProps) {
   const [activeTab, setActiveTab] = useState<PreviewTab>("tools");
   const toolEvents = useMemo(() => getToolEvents(events), [events]);
@@ -120,6 +136,7 @@ export default function ToolPreviewPanel({
               refreshing={sandboxRefreshing}
               state={sandbox}
             />
+            <McpPanel onRefresh={onRefreshMcp} servers={mcpServers} tools={mcpTools} />
             <VncPanel onRefresh={onRefreshVnc} state={vnc} />
           </div>
         ) : null}
@@ -191,6 +208,7 @@ function ToolCallDetail({ event }: { event: SessionEventItem }) {
   const output = getString(event.payload.output);
   const screenshot = parseScreenshot(output);
   const searchResults = parseSearchResults(output);
+  const mcpResult = parseMcpToolResult(output);
   const Icon = getToolIcon(toolName, screenshot, searchResults);
 
   return (
@@ -211,6 +229,8 @@ function ToolCallDetail({ event }: { event: SessionEventItem }) {
             <ScreenshotPreview screenshot={screenshot} />
           ) : searchResults ? (
             <SearchResultsPreview results={searchResults} />
+          ) : mcpResult ? (
+            <McpResultPreview result={mcpResult} />
           ) : (
             <pre className="mt-3 max-h-56 overflow-auto rounded-md bg-white p-3 text-xs leading-5 whitespace-pre-wrap text-slate-700">
               {output || "<no output>"}
@@ -292,6 +312,33 @@ function SearchResultsPreview({ results }: { results: SearchResultsPayload }) {
             </p>
           </a>
         ))}
+      </div>
+    </div>
+  );
+}
+
+function McpResultPreview({ result }: { result: McpToolResultPayload }) {
+  return (
+    <div className="mt-3 rounded-md border border-slate-200 bg-white">
+      <div className="border-b border-slate-200 px-3 py-2">
+        <div className="text-xs font-medium text-slate-500">MCP 工具结果</div>
+        <div className="mt-1 text-sm font-semibold text-slate-950">
+          {result.server_name}.{result.tool_name}
+        </div>
+      </div>
+      <div className="grid gap-3 p-3">
+        <div>
+          <div className="mb-1 text-xs font-medium text-slate-500">MCP 参数</div>
+          <pre className="max-h-28 overflow-auto rounded-md bg-slate-50 p-2 text-[11px] leading-5 text-slate-600">
+            {JSON.stringify(result.arguments, null, 2)}
+          </pre>
+        </div>
+        <div>
+          <div className="mb-1 text-xs font-medium text-slate-500">MCP 返回内容</div>
+          <pre className="max-h-40 overflow-auto rounded-md bg-slate-50 p-2 text-[11px] leading-5 whitespace-pre-wrap text-slate-700">
+            {JSON.stringify(result.content, null, 2)}
+          </pre>
+        </div>
       </div>
     </div>
   );
@@ -388,4 +435,33 @@ function parseSearchResults(value: string): SearchResultsPayload | null {
 
 function getString(value: unknown): string {
   return typeof value === "string" ? value : "";
+}
+
+function parseMcpToolResult(value: string): McpToolResultPayload | null {
+  try {
+    // McpAgentTool 的 output 是 JSON 字符串。
+    // 只有 kind=mcp_tool_result 时，才按 MCP 工具卡片渲染。
+    const payload = JSON.parse(value) as Partial<McpToolResultPayload>;
+    if (
+      payload.kind === "mcp_tool_result" &&
+      typeof payload.server_name === "string" &&
+      typeof payload.tool_name === "string" &&
+      payload.arguments &&
+      typeof payload.arguments === "object" &&
+      Array.isArray(payload.content)
+    ) {
+      return {
+        kind: "mcp_tool_result",
+        server_name: payload.server_name,
+        tool_name: payload.tool_name,
+        arguments: payload.arguments as Record<string, unknown>,
+        content: payload.content.map((item) =>
+          item && typeof item === "object" ? item : { value: item },
+        ),
+      };
+    }
+  } catch {
+    return null;
+  }
+  return null;
 }

@@ -1,5 +1,6 @@
 # 定义一个文本摘要工具
 from app.domain.agent_core.tools import agent_tool, ToolRegistry
+from app.infrastructure.agent_tools.mcp import register_mcp_tools
 from app.infrastructure.agent_tools.sandbox_browser import register_sandbox_browser_tools
 from app.infrastructure.agent_tools.sandbox_file import register_sandbox_file_tools
 from app.infrastructure.agent_tools.sandbox_shell import register_sandbox_shell_tools
@@ -76,5 +77,7 @@ def build_builtin_tool_registry() -> ToolRegistry:
     register_sandbox_browser_tools(registry)  # 浏览器
 
     register_search_tools(registry)  # search
+
+    register_mcp_tools(registry)  # 注册mcp
 
     return registry

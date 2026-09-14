@@ -86,6 +86,9 @@ class Settings(BaseSettings):
     search_timeout_seconds: float = 10.0
     search_max_results: int = 5
 
+    # mcp 配置路径
+    mcp_config_path: str = "config/mcp.yaml"
+
 
 @lru_cache
 def get_settings() -> Settings:
