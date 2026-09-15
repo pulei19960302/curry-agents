@@ -23,6 +23,7 @@ import ContextPanel from "@/components/context-panel";
 import type { SandboxInstanceData } from "@/types/sandbox";
 import { VncStatusData } from "@/types/vnc";
 import { McpServerListData, McpToolListData } from "@/types/mcp";
+import type { A2aAgentCardData, A2aConceptsData } from "@/types/a2a";
 
 type ChatWorkspaceProps = {
   attachments: SessionFileItem[];
@@ -61,6 +62,9 @@ type ChatWorkspaceProps = {
   onRefreshMcp: () => void;
   mcpServers: LoadState<McpServerListData>;
   mcpTools: LoadState<McpToolListData>;
+  a2aAgentCard: LoadState<A2aAgentCardData>;
+  a2aConcepts: LoadState<A2aConceptsData>;
+  refreshA2a: () => void;
 };
 
 export default function ChatWorkspace({
@@ -100,6 +104,9 @@ export default function ChatWorkspace({
   onRefreshMcp,
   mcpServers,
   mcpTools,
+  a2aAgentCard,
+  a2aConcepts,
+  refreshA2a,
 }: ChatWorkspaceProps) {
   return (
     <section className="grid grid-cols-[1fr_280px] gap-5 max-xl:grid-cols-1">
@@ -126,6 +133,9 @@ export default function ChatWorkspace({
           onRefreshMcp={onRefreshMcp}
           mcpServers={mcpServers}
           mcpTools={mcpTools}
+          a2aAgentCard={a2aAgentCard}
+          a2aConcepts={a2aConcepts}
+          onRefreshA2a={refreshA2a}
         />
         <MessageTimeline state={messages} />
         <div className="space-y-3 border-t border-slate-200 bg-slate-50 p-4">

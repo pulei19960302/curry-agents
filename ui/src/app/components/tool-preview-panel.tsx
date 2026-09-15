@@ -21,6 +21,8 @@ import { LoadState, SessionEventItem, SessionFileItem } from "@/types/sessions";
 import { FilePreviewData } from "@/types/files";
 import { SandboxInstanceData } from "@/types/sandbox";
 import { McpServerListData, McpToolListData } from "@/types/mcp";
+import { A2aAgentCardData, A2aConceptsData } from "@/types/a2a";
+import A2aPanel from "@/components/a2a-panel";
 
 type ToolPreviewPanelProps = {
   events: LoadState<SessionEventItem[]>; // 会话事件列表，用来提取最近工具调用。
@@ -37,6 +39,9 @@ type ToolPreviewPanelProps = {
   sandboxRefreshing: boolean;
   selectedFile: SessionFileItem | null;
   vnc: LoadState<VncStatusData>; // VNC 连接信息，用于浏览器实时观察。
+  a2aAgentCard: LoadState<A2aAgentCardData>;
+  a2aConcepts: LoadState<A2aConceptsData>;
+  onRefreshA2a: () => void;
 };
 
 type PreviewTab = "tools" | "files" | "environment";
@@ -83,6 +88,9 @@ export default function ToolPreviewPanel({
   vnc,
   mcpServers,
   mcpTools,
+  a2aAgentCard,
+  a2aConcepts,
+  onRefreshA2a,
 }: ToolPreviewPanelProps) {
   const [activeTab, setActiveTab] = useState<PreviewTab>("tools");
   const toolEvents = useMemo(() => getToolEvents(events), [events]);
@@ -138,6 +146,7 @@ export default function ToolPreviewPanel({
             />
             <McpPanel onRefresh={onRefreshMcp} servers={mcpServers} tools={mcpTools} />
             <VncPanel onRefresh={onRefreshVnc} state={vnc} />
+            <A2aPanel agentCard={a2aAgentCard} concepts={a2aConcepts} onRefresh={onRefreshA2a} />
           </div>
         ) : null}
       </div>

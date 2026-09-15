@@ -21,6 +21,8 @@ import { fetchCurrentSandbox, fetchVncStatus, waitCurrentSandbox } from "./lib/s
 import type { VncStatusData } from "@/types/vnc";
 import { McpServerListData, McpToolListData } from "@/types/mcp";
 import { fetchMcpServers, fetchMcpTools } from "@/lib/mcp-api";
+import { A2aAgentCardData, A2aConceptsData } from "@/types/a2a";
+import { fetchA2aAgentCard, fetchA2aConcepts } from "@/lib/a2a-api";
 
 export default function Home() {
   const [apiStatus, setApiStatus] = useState<LoadState<ApiStatusData>>({
@@ -44,24 +46,41 @@ export default function Home() {
     type: "loading",
   });
 
+  const [a2aConcepts, setA2aConcepts] = useState<LoadState<A2aConceptsData>>({ type: "loading" });
+  const [a2aAgentCard, setA2aAgentCard] = useState<LoadState<A2aAgentCardData>>({
+    type: "loading",
+  });
+
   const workspace = useSessionWorkspace();
   const agentThinking = useAgentThinking();
 
   async function loadStatus() {
-    const [apiData, databaseData, sandboxData, vncStatus, mcpServerData, mcpToolData] =
-      await Promise.all([
-        requestApi<ApiStatusData>("/api/status"),
-        requestApi<DatabaseStatusData>("/api/status/database"),
-        fetchCurrentSandbox(),
-        refreshVnc(),
-        fetchMcpServers(),
-        fetchMcpTools(),
-      ]);
+    const [
+      apiData,
+      databaseData,
+      sandboxData,
+      vncStatus,
+      mcpServerData,
+      mcpToolData,
+      a2aAgentCard,
+      a2aConcepts,
+    ] = await Promise.all([
+      requestApi<ApiStatusData>("/api/status"),
+      requestApi<DatabaseStatusData>("/api/status/database"),
+      fetchCurrentSandbox(),
+      refreshVnc(),
+      fetchMcpServers(),
+      fetchMcpTools(),
+      fetchA2aAgentCard(),
+      fetchA2aConcepts(),
+    ]);
     setApiStatus({ type: "ready", data: apiData });
     setDatabaseStatus({ type: "ready", data: databaseData });
     setSandboxStatus({ type: "ready", data: sandboxData });
     setMcpServers({ type: "ready", data: mcpServerData });
     setMcpTools({ type: "ready", data: mcpToolData });
+    setA2aAgentCard({ type: "ready", data: a2aAgentCard });
+    setA2aConcepts({ type: "ready", data: a2aConcepts });
   }
 
   async function refreshAll() {
@@ -121,6 +140,20 @@ export default function Home() {
     } catch (error) {
       const message = error instanceof Error ? error.message : "unknown error";
       setVncStatus({ type: "error", message });
+    }
+  }
+
+  async function refreshA2a() {
+    setA2aConcepts({ type: "loading" });
+    setA2aAgentCard({ type: "loading" });
+    try {
+      const [concepts, agentCard] = await Promise.all([fetchA2aConcepts(), fetchA2aAgentCard()]);
+      setA2aConcepts({ type: "ready", data: concepts });
+      setA2aAgentCard({ type: "ready", data: agentCard });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "unknown error";
+      setA2aConcepts({ type: "error", message });
+      setA2aAgentCard({ type: "error", message });
     }
   }
 
@@ -217,6 +250,9 @@ export default function Home() {
               onRefreshMcp={refreshMcp}
               mcpServers={mcpServers}
               mcpTools={mcpTools}
+              a2aAgentCard={a2aAgentCard}
+              a2aConcepts={a2aConcepts}
+              refreshA2a={refreshA2a}
             />
           </div>
         </section>
