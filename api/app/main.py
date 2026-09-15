@@ -1,15 +1,14 @@
 from contextlib import asynccontextmanager
-
 from fastapi import FastAPI
 from starlette.middleware.cors import CORSMiddleware
 
-from app.api.router import api_router
 from app.application.agent_task_runner import AgentTaskRunner
 from app.core.config import settings
 from app.core.handlers import register_exception_handlers
 from app.core.logging import configure_logging
 from app.infrastructure.database.session import AsyncSessionLocal
 from app.infrastructure.redis_task.task_queue import create_redis_client, RedisAgentTaskQueue
+from app.presentation.http.router import api_router
 
 
 @asynccontextmanager

@@ -1,13 +1,11 @@
 from asyncio import sleep
 from http import HTTPStatus
-from uuid import UUID
 
 from fastapi import APIRouter, Depends, Response, UploadFile, File, Request
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
+from uuid import UUID
 
-from app.api.routes.files import to_file_response
-from app.api.sse import encode_sse
 from app.application.context_engineering_service import ContextEngineeringService
 from app.application.file_service import FileService
 from app.application.llm_service import LLMService
@@ -19,6 +17,8 @@ from app.domain.files.entities import SessionFile
 from app.domain.sessions.entities import Session, SessionMessage, SessionEvent
 from app.infrastructure.database.session import get_db_session
 from app.infrastructure.redis_task.task_queue import RedisAgentTaskQueue
+from app.presentation.http.routes.files import to_file_response
+from app.presentation.http.sse import encode_sse
 from app.schemas.common import ApiResponse
 from app.schemas.files import SessionFileResponse, SessionFileListResponse
 from app.schemas.session import (
