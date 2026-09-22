@@ -1,8 +1,10 @@
 from fastapi import APIRouter, Depends
 
 from app.application.a2a_intro_service import A2aIntroService
+from app.application.a2a_service import A2aService
 from app.schemas.a2a import A2aConceptsResponse, A2aRoleResponse, A2aAgentCardResponse, A2aMessageDemoResponse, \
-    A2aMessageSendRequest
+    A2aMessageSendRequest, A2aRemoteAgentListResponse, A2aTaskResultResponse, A2aAgentCardRequest, \
+    A2aMessageInvokeRequest
 from app.schemas.common import ApiResponse
 
 router = APIRouter(prefix="/a2a", tags=["a2a"])
@@ -10,6 +12,10 @@ router = APIRouter(prefix="/a2a", tags=["a2a"])
 
 def build_a2a_intro_service() -> A2aIntroService:
     return A2aIntroService()
+
+
+def build_a2a_service() -> A2aService:
+    return A2aService()
 
 
 @router.get("/concepts", response_model=ApiResponse[A2aConceptsResponse])
@@ -43,3 +49,44 @@ async def send_a2a_demo_message(
 
     demo = service.send_demo_message(payload.message)
     return ApiResponse(data=A2aMessageDemoResponse.model_validate(demo))
+
+
+@router.get("/agents", response_model=ApiResponse[A2aRemoteAgentListResponse])
+async def list_agents(
+        service: A2aService = Depends(build_a2a_service),
+) -> ApiResponse[A2aRemoteAgentListResponse]:
+    return ApiResponse(
+        data=A2aRemoteAgentListResponse.model_validate(service.list_agents())
+    )
+
+
+@router.get("/agents/{agent_key}/card", response_model=ApiResponse[A2aAgentCardResponse])
+async def get_agent_card(
+        agent_key: str,
+        service: A2aService = Depends(build_a2a_service),
+) -> ApiResponse[A2aAgentCardResponse]:
+    return ApiResponse(
+        data=A2aAgentCardResponse.model_validate(service.get_agent_card(agent_key))
+    )
+
+
+@router.post("/agents/card", response_model=ApiResponse[A2aAgentCardResponse])
+async def agent_card(
+        payload: A2aAgentCardRequest,
+        service: A2aService = Depends(build_a2a_service),
+) -> ApiResponse[A2aAgentCardResponse]:
+    return ApiResponse(
+        data=A2aAgentCardResponse.model_validate(service.get_agent_card(payload.agent_key))
+    )
+
+
+@router.post("/message/send", response_model=ApiResponse[A2aTaskResultResponse])
+async def send_agent_message(
+        payload: A2aMessageInvokeRequest,
+        service: A2aService = Depends(build_a2a_service),
+) -> ApiResponse[A2aTaskResultResponse]:
+    return ApiResponse(
+        data=A2aTaskResultResponse.model_validate(
+            service.send_message(payload.agent_key, message=payload.message)
+        )
+    )

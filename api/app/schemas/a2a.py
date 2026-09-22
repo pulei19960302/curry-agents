@@ -53,3 +53,37 @@ class A2aMessageDemoResponse(ResponseSchema):
     input_message: list[A2aMessagePartResponse]
     output_message: list[A2aMessagePartResponse]
     steps: list[A2aTaskStepResponse]
+
+
+class A2aRemoteAgentResponse(ResponseSchema):
+    name: str
+    key: str
+    enabled: bool
+    transport: str
+    description: str
+    url: str
+    version: str
+    capabilities: list[A2aCapabilityResponse]
+
+
+class A2aRemoteAgentListResponse(ResponseSchema):
+    item: list[A2aRemoteAgentResponse]
+
+
+class A2aAgentCardRequest(ResponseSchema):
+    agent_key: str | None
+
+
+class A2aMessageInvokeRequest(ResponseSchema):
+    message: str
+    agent_key: str | None
+
+
+class A2aTaskResultResponse(ResponseSchema):
+    agent_key: str
+    remote_agent: str
+    task_id: str
+    status: str
+    input_message: list[A2aMessagePartResponse]
+    output_message: list[A2aMessagePartResponse]
+    steps: list[A2aTaskStepResponse]

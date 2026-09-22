@@ -1,16 +1,23 @@
 import { Network, RefreshCcw } from "lucide-react";
 
-import type { A2aAgentCardData, A2aConceptsData } from "@/types/a2a";
+import {
+  A2aAgentCardData,
+  A2aConceptsData,
+  A2aRemoteAgent,
+  A2aRemoteAgentListData,
+} from "@/types/a2a";
+
 import type { LoadState } from "@/types/sessions";
 
 type A2aPanelProps = {
   agentCard: LoadState<A2aAgentCardData>;
+  agents: LoadState<A2aRemoteAgentListData>;
   concepts: LoadState<A2aConceptsData>;
   onRefresh: () => void;
 };
 
-// 展示 A2A 远程 Agent 概念和示例 Agent Card
-export default function A2aPanel({ agentCard, concepts, onRefresh }: A2aPanelProps) {
+// ===================== 第1步：展示 A2A 远程 Agent 概念和示例 Agent Card =====================
+export default function A2aPanel({ agentCard, agents, concepts, onRefresh }: A2aPanelProps) {
   return (
     <div className="rounded-md border border-slate-200 bg-white p-5">
       <div className="flex items-start justify-between gap-3">
@@ -35,6 +42,7 @@ export default function A2aPanel({ agentCard, concepts, onRefresh }: A2aPanelPro
 
       <div className="mt-4 grid gap-4">
         <ConceptsView state={concepts} />
+        <AgentListView state={agents} />
         <AgentCardView state={agentCard} />
       </div>
     </div>
@@ -61,6 +69,34 @@ function ConceptsView({ state }: { state: LoadState<A2aConceptsData> }) {
         ))}
       </div>
       <p className="mt-2 text-xs leading-5 text-slate-500">下一步：{state.data.next_step}</p>
+    </div>
+  );
+}
+
+function AgentListView({ state }: { state: LoadState<A2aRemoteAgentListData> }) {
+  if (state.type === "loading") {
+    return <p className="text-sm text-slate-500">正在读取 A2A Agent 配置...</p>;
+  }
+  if (state.type === "error") {
+    return <p className="text-sm text-rose-600">{state.message}</p>;
+  }
+  return (
+    <div>
+      <h3 className="text-sm font-semibold text-slate-900">已配置远程 Agent</h3>
+      <div className="mt-2 grid gap-2">
+        {state.data.item.map((agent: A2aRemoteAgent) => (
+          <div className="rounded-md border border-slate-200 bg-white px-3 py-2" key={agent.key}>
+            <div className="flex items-center justify-between gap-3 text-sm">
+              <span className="font-medium text-slate-900">{agent.name}</span>
+              <span className="text-xs text-slate-500">
+                {agent.transport} · {agent.enabled ? "enabled" : "disabled"}
+              </span>
+            </div>
+            <p className="mt-1 text-xs leading-5 text-slate-500">{agent.description}</p>
+            <p className="mt-1 truncate text-xs text-sky-700">{agent.url}</p>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

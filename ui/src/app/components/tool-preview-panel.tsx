@@ -5,6 +5,7 @@ import {
   FolderOpen,
   Globe,
   Hammer,
+  Network,
   RefreshCcw,
   Search,
   Terminal,
@@ -42,6 +43,17 @@ type ToolPreviewPanelProps = {
   a2aAgentCard: LoadState<A2aAgentCardData>;
   a2aConcepts: LoadState<A2aConceptsData>;
   onRefreshA2a: () => void;
+};
+
+type A2aTaskResultPayload = {
+  kind: "a2a_task_result";
+  agent_key: string;
+  remote_agent: string;
+  task_id: string;
+  status: string;
+  input_message: Array<{ kind: string; text: string }>;
+  output_message: Array<{ kind: string; text: string }>;
+  steps: Array<{ index: number; action: string; detail: string }>;
 };
 
 type PreviewTab = "tools" | "files" | "environment";
@@ -146,7 +158,14 @@ export default function ToolPreviewPanel({
             />
             <McpPanel onRefresh={onRefreshMcp} servers={mcpServers} tools={mcpTools} />
             <VncPanel onRefresh={onRefreshVnc} state={vnc} />
-            <A2aPanel agentCard={a2aAgentCard} concepts={a2aConcepts} onRefresh={onRefreshA2a} />
+            <A2aPanel
+              agentCard={a2aAgentCard}
+              concepts={a2aConcepts}
+              onRefresh={onRefreshA2a}
+              agents={{
+                type: "loading",
+              }}
+            />
           </div>
         ) : null}
       </div>
@@ -218,6 +237,7 @@ function ToolCallDetail({ event }: { event: SessionEventItem }) {
   const screenshot = parseScreenshot(output);
   const searchResults = parseSearchResults(output);
   const mcpResult = parseMcpToolResult(output);
+  const a2aResult = parseA2aTaskResult(output);
   const Icon = getToolIcon(toolName, screenshot, searchResults);
 
   return (
@@ -240,6 +260,8 @@ function ToolCallDetail({ event }: { event: SessionEventItem }) {
             <SearchResultsPreview results={searchResults} />
           ) : mcpResult ? (
             <McpResultPreview result={mcpResult} />
+          ) : a2aResult ? (
+            <A2aResultPreview result={a2aResult} />
           ) : (
             <pre className="mt-3 max-h-56 overflow-auto rounded-md bg-white p-3 text-xs leading-5 whitespace-pre-wrap text-slate-700">
               {output || "<no output>"}
@@ -353,6 +375,94 @@ function McpResultPreview({ result }: { result: McpToolResultPayload }) {
   );
 }
 
+function A2aResultPreview({ result }: { result: A2aTaskResultPayload }) {
+  const statusClassName =
+    result.status === "completed"
+      ? "bg-emerald-50 text-emerald-700"
+      : result.status === "failed"
+        ? "bg-rose-50 text-rose-700"
+        : "bg-amber-50 text-amber-700";
+
+  return (
+    <div className="mt-3 overflow-hidden rounded-md border border-slate-200 bg-white">
+      <div className="border-b border-slate-200 px-3 py-2">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <div className="text-xs font-medium text-slate-500">A2A 调用结果</div>
+            <div className="mt-1 flex items-center gap-2 text-sm font-semibold text-slate-950">
+              <Network className="shrink-0 text-slate-500" size={15} aria-hidden="true" />
+              <span className="truncate">{result.remote_agent || result.agent_key}</span>
+            </div>
+          </div>
+          <span className={`shrink-0 rounded px-2 py-1 text-xs font-medium ${statusClassName}`}>
+            {result.status}
+          </span>
+        </div>
+        <div className="mt-2 grid gap-1 text-xs text-slate-500 sm:grid-cols-2">
+          <div className="truncate">Agent key: {result.agent_key}</div>
+          <div className="truncate sm:text-right" title={result.task_id}>
+            Task ID: {result.task_id}
+          </div>
+        </div>
+      </div>
+
+      <div className="grid gap-3 p-3">
+        <MessageParts title="发送消息" parts={result.input_message} />
+        <MessageParts title="返回消息" parts={result.output_message} />
+
+        {result.steps.length > 0 ? (
+          <div>
+            <div className="mb-2 text-xs font-medium text-slate-500">协作步骤</div>
+            <ol className="grid gap-2">
+              {result.steps.map((step) => (
+                <li className="flex gap-2" key={`${step.index}-${step.action}`}>
+                  <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-slate-100 text-[11px] font-semibold text-slate-600">
+                    {step.index}
+                  </span>
+                  <div className="min-w-0">
+                    <div className="text-xs font-semibold text-slate-800">{step.action}</div>
+                    {step.detail ? (
+                      <p className="mt-0.5 text-xs leading-5 text-slate-600">{step.detail}</p>
+                    ) : null}
+                  </div>
+                </li>
+              ))}
+            </ol>
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+function MessageParts({
+  parts,
+  title,
+}: {
+  parts: A2aTaskResultPayload["input_message"];
+  title: string;
+}) {
+  return (
+    <div>
+      <div className="mb-1 text-xs font-medium text-slate-500">{title}</div>
+      <div className="grid gap-2">
+        {parts.length > 0 ? (
+          parts.map((part, index) => (
+            <div className="rounded-md bg-slate-50 p-2" key={`${part.kind}-${index}`}>
+              <div className="text-[11px] font-medium text-slate-400">{part.kind}</div>
+              <p className="mt-1 text-xs leading-5 whitespace-pre-wrap text-slate-700">
+                {part.text}
+              </p>
+            </div>
+          ))
+        ) : (
+          <div className="rounded-md bg-slate-50 p-2 text-xs text-slate-400">暂无消息</div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function EmptyState({ icon: Icon, text }: { icon: typeof Bot; text: string }) {
   return (
     <div className="flex items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-500">
@@ -381,6 +491,9 @@ function getToolIcon(
   }
   if (searchResults || toolName.startsWith("search_")) {
     return Search;
+  }
+  if (toolName.startsWith("a2a_")) {
+    return Network;
   }
   if (toolName.startsWith("browser_")) {
     return Globe;
@@ -467,6 +580,37 @@ function parseMcpToolResult(value: string): McpToolResultPayload | null {
         content: payload.content.map((item) =>
           item && typeof item === "object" ? item : { value: item },
         ),
+      };
+    }
+  } catch {
+    return null;
+  }
+  return null;
+}
+
+function parseA2aTaskResult(value: string): A2aTaskResultPayload | null {
+  try {
+    // 只有 kind=a2a_task_result 时，才按 a2a 工具卡片渲染。
+    const payload = JSON.parse(value) as Partial<A2aTaskResultPayload>;
+    if (
+      payload.kind === "a2a_task_result" &&
+      typeof payload.agent_key === "string" &&
+      typeof payload.remote_agent === "string" &&
+      typeof payload.task_id === "string" &&
+      typeof payload.status === "string" &&
+      Array.isArray(payload.input_message) &&
+      Array.isArray(payload.output_message) &&
+      Array.isArray(payload.steps)
+    ) {
+      return {
+        kind: "a2a_task_result",
+        agent_key: payload.agent_key,
+        remote_agent: payload.remote_agent,
+        task_id: payload.task_id,
+        status: payload.status,
+        input_message: payload.input_message,
+        output_message: payload.output_message,
+        steps: payload.steps,
       };
     }
   } catch {

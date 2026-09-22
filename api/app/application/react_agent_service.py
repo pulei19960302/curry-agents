@@ -250,7 +250,15 @@ class ReActAgentService:
         step_text = f"{title} {description} {expected_output}".strip()
         text = f"{goal} {step_text}".strip()
 
-        if self._needs_mcp(text):
+        if self._needs_a2a_agent(text):
+            tool = self.registry.get("a2a_call")
+            arguments = {
+                "agent_key": "demo_researcher",
+                "message": text
+            }
+
+
+        elif self._needs_mcp(text):
             tool = self.registry.get("mcp_call")
             arguments = {
                 "server_name": "demo",
@@ -294,6 +302,11 @@ class ReActAgentService:
             "arguments": result.arguments,
             "output": result.output,
         }
+
+    @staticmethod
+    def _needs_a2a_agent(text: str) -> bool:
+        keywords = ["A2A", "a2a", "远程 Agent", "远程智能体", "协作 Agent"]
+        return any(keyword in text for keyword in keywords)
 
     @staticmethod
     def _needs_browser_open(text: str) -> bool:

@@ -25,3 +25,18 @@ export type A2aAgentCardData = {
   default_input_modes: string[];
   default_output_modes: string[];
 };
+
+export type A2aRemoteAgent = {
+  name: string;
+  key: string;
+  enabled: boolean;
+  transport: string;
+  description: string;
+  url: string;
+  version: string;
+  capabilities: A2aCapabilityItem[];
+};
+
+export type A2aRemoteAgentListData = {
+  item: A2aRemoteAgent[];
+};

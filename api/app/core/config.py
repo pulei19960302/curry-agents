@@ -89,6 +89,9 @@ class Settings(BaseSettings):
     # mcp 配置路径
     mcp_config_path: str = "config/mcp.yaml"
 
+    # agent 配置路径
+    a2a_config_path: str = "config/a2a.yaml"
+
 
 @lru_cache
 def get_settings() -> Settings:

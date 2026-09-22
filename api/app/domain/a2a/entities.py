@@ -71,3 +71,26 @@ class A2aMessageDemo:
     input_message: list[A2aMessagePart]
     output_message: list[A2aMessagePart]
     steps: list[A2aTaskStep]
+
+
+@dataclass(slots=True)
+class A2aRemoteAgentInfo:
+    key: str
+    enabled: bool
+    transport: str
+    name: str
+    description: str
+    url: str
+    version: str
+    capabilities: list[A2aCapability]
+
+
+@dataclass(slots=True)
+class A2aTaskResult:
+    agent_key: str
+    remote_agent: str
+    task_id: str
+    status: str
+    input_message: list[A2aMessagePart]
+    output_message: list[A2aMessagePart]
+    steps: list[A2aTaskStep]
