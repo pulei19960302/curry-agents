@@ -23,7 +23,8 @@ import ContextPanel from "@/components/context-panel";
 import type { SandboxInstanceData } from "@/types/sandbox";
 import { VncStatusData } from "@/types/vnc";
 import { McpServerListData, McpToolListData } from "@/types/mcp";
-import type { A2aAgentCardData, A2aConceptsData } from "@/types/a2a";
+import type { A2aAgentCardData, A2aConceptsData, A2aRemoteAgentListData } from "@/types/a2a";
+import { MultiAgentRoleListData } from "@/types/mutil-agent";
 
 type ChatWorkspaceProps = {
   attachments: SessionFileItem[];
@@ -65,6 +66,9 @@ type ChatWorkspaceProps = {
   a2aAgentCard: LoadState<A2aAgentCardData>;
   a2aConcepts: LoadState<A2aConceptsData>;
   refreshA2a: () => void;
+  onRefreshMultiAgent: () => void;
+  a2aAgents: LoadState<A2aRemoteAgentListData>;
+  multiAgentRoles: LoadState<MultiAgentRoleListData>;
 };
 
 export default function ChatWorkspace({
@@ -107,6 +111,9 @@ export default function ChatWorkspace({
   a2aAgentCard,
   a2aConcepts,
   refreshA2a,
+  onRefreshMultiAgent,
+  a2aAgents,
+  multiAgentRoles,
 }: ChatWorkspaceProps) {
   return (
     <section className="grid grid-cols-[1fr_280px] gap-5 max-xl:grid-cols-1">
@@ -136,6 +143,9 @@ export default function ChatWorkspace({
           a2aAgentCard={a2aAgentCard}
           a2aConcepts={a2aConcepts}
           onRefreshA2a={refreshA2a}
+          onRefreshMultiAgent={onRefreshMultiAgent}
+          a2aAgents={a2aAgents}
+          multiAgentRoles={multiAgentRoles}
         />
         <MessageTimeline state={messages} />
         <div className="space-y-3 border-t border-slate-200 bg-slate-50 p-4">

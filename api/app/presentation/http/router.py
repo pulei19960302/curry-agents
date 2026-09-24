@@ -1,7 +1,7 @@
 from fastapi import APIRouter
 
 from app.presentation.http.routes import status, sessions, files, config, llm, agent_thinking, agent_core, sandboxes, \
-    mcp, a2a
+    mcp, a2a, multi_agent
 
 # 创建总路由
 api_router = APIRouter()
@@ -17,3 +17,4 @@ api_router.include_router(agent_core.router)
 api_router.include_router(sandboxes.router)
 api_router.include_router(mcp.router)
 api_router.include_router(a2a.router)
+api_router.include_router(multi_agent.router)

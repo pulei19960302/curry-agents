@@ -19,17 +19,21 @@ import McpPanel from "@/components/mcp_panel";
 import { formatDateTime } from "@/lib/format";
 import type { VncStatusData } from "@/types/vnc";
 import { LoadState, SessionEventItem, SessionFileItem } from "@/types/sessions";
+import type { MultiAgentRoleListData } from "@/types/mutil-agent";
 import { FilePreviewData } from "@/types/files";
 import { SandboxInstanceData } from "@/types/sandbox";
 import { McpServerListData, McpToolListData } from "@/types/mcp";
-import { A2aAgentCardData, A2aConceptsData } from "@/types/a2a";
+import { A2aAgentCardData, A2aConceptsData, A2aRemoteAgentListData } from "@/types/a2a";
 import A2aPanel from "@/components/a2a-panel";
+import MultiAgentPanel from "@/components/multi-agent-panel";
 
 type ToolPreviewPanelProps = {
   events: LoadState<SessionEventItem[]>; // 会话事件列表，用来提取最近工具调用。
   files: LoadState<SessionFileItem[]>; // 会话文件列表，文件工具和附件都会沉淀到这里。
   mcpServers: LoadState<McpServerListData>;
   mcpTools: LoadState<McpToolListData>;
+  a2aAgents: LoadState<A2aRemoteAgentListData>;
+  multiAgentRoles: LoadState<MultiAgentRoleListData>; // 多 Agent 协作角色说明。
   onPreviewFile: (fileId: string) => void;
   onRefreshSandbox: () => void;
   onRefreshVnc: () => void;
@@ -43,6 +47,7 @@ type ToolPreviewPanelProps = {
   a2aAgentCard: LoadState<A2aAgentCardData>;
   a2aConcepts: LoadState<A2aConceptsData>;
   onRefreshA2a: () => void;
+  onRefreshMultiAgent: () => void;
 };
 
 type A2aTaskResultPayload = {
@@ -84,6 +89,34 @@ type McpToolResultPayload = {
   content: Array<Record<string, unknown>>;
 };
 
+type MultiAgentResultPayload = {
+  kind: "multi_agent_result";
+  task: string;
+  manager: string;
+  roles: Array<{
+    key: string;
+    name: string;
+    responsibility: string;
+    capability: string;
+  }>;
+  subtasks: Array<{
+    id: string;
+    assignee: string;
+    title: string;
+    instruction: string;
+    expected_output: string;
+    status: string;
+    output: string;
+  }>;
+  review: {
+    reviewer: string;
+    status: string;
+    comments: string[];
+    improvement: string;
+  };
+  final_answer: string;
+};
+
 // 统一展示工具调用、文件和沙箱观察
 export default function ToolPreviewPanel({
   events,
@@ -103,6 +136,9 @@ export default function ToolPreviewPanel({
   a2aAgentCard,
   a2aConcepts,
   onRefreshA2a,
+  onRefreshMultiAgent,
+  multiAgentRoles,
+  a2aAgents,
 }: ToolPreviewPanelProps) {
   const [activeTab, setActiveTab] = useState<PreviewTab>("tools");
   const toolEvents = useMemo(() => getToolEvents(events), [events]);
@@ -162,10 +198,9 @@ export default function ToolPreviewPanel({
               agentCard={a2aAgentCard}
               concepts={a2aConcepts}
               onRefresh={onRefreshA2a}
-              agents={{
-                type: "loading",
-              }}
+              agents={a2aAgents}
             />
+            <MultiAgentPanel onRefresh={onRefreshMultiAgent} roles={multiAgentRoles} />
           </div>
         ) : null}
       </div>
@@ -239,6 +274,7 @@ function ToolCallDetail({ event }: { event: SessionEventItem }) {
   const mcpResult = parseMcpToolResult(output);
   const a2aResult = parseA2aTaskResult(output);
   const Icon = getToolIcon(toolName, screenshot, searchResults);
+  const multiAgentResult = parseMultiAgentResult(output);
 
   return (
     <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
@@ -262,6 +298,8 @@ function ToolCallDetail({ event }: { event: SessionEventItem }) {
             <McpResultPreview result={mcpResult} />
           ) : a2aResult ? (
             <A2aResultPreview result={a2aResult} />
+          ) : multiAgentResult ? (
+            <MultiAgentResultPreview result={multiAgentResult} />
           ) : (
             <pre className="mt-3 max-h-56 overflow-auto rounded-md bg-white p-3 text-xs leading-5 whitespace-pre-wrap text-slate-700">
               {output || "<no output>"}
@@ -430,6 +468,54 @@ function A2aResultPreview({ result }: { result: A2aTaskResultPayload }) {
             </ol>
           </div>
         ) : null}
+      </div>
+    </div>
+  );
+}
+
+function MultiAgentResultPreview({ result }: { result: MultiAgentResultPayload }) {
+  // 这个组件展示 Manager / Worker / Reviewer 的协作结果。
+  // 数据已经经过 parseMultiAgentResult 检查，因此这里只负责布局。
+  return (
+    <div className="mt-3 rounded-md border border-slate-200 bg-white">
+      <div className="border-b border-slate-200 px-3 py-2">
+        <div className="text-xs font-medium text-slate-500">多 Agent 协作</div>
+        <div className="mt-1 text-sm font-semibold text-slate-950">{result.manager}</div>
+        <p className="mt-1 text-xs leading-5 text-slate-500">{result.task}</p>
+      </div>
+      <div className="grid gap-3 p-3">
+        <div>
+          <div className="mb-1 text-xs font-medium text-slate-500">子任务分派</div>
+          <div className="grid gap-2">
+            {result.subtasks.map((subtask) => (
+              <div
+                className="rounded-md border border-slate-200 bg-slate-50 px-2 py-1.5"
+                key={subtask.id}
+              >
+                <div className="flex items-center justify-between gap-2 text-xs">
+                  <span className="font-semibold text-slate-900">{subtask.title}</span>
+                  <span className="text-slate-500">{subtask.status}</span>
+                </div>
+                <p className="mt-1 text-xs text-slate-500">{subtask.assignee}</p>
+                <p className="mt-1 text-xs leading-5 text-slate-700">{subtask.output}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2">
+          <div className="text-xs font-semibold text-emerald-800">
+            {result.review.reviewer} · {result.review.status}
+          </div>
+          <ul className="mt-1 list-inside list-disc text-xs leading-5 text-emerald-700">
+            {result.review.comments.map((comment) => (
+              <li key={comment}>{comment}</li>
+            ))}
+          </ul>
+          <p className="mt-1 text-xs leading-5 text-emerald-700">{result.review.improvement}</p>
+        </div>
+        <pre className="max-h-48 overflow-auto rounded-md bg-slate-50 p-3 text-xs leading-5 whitespace-pre-wrap text-slate-700">
+          {result.final_answer}
+        </pre>
       </div>
     </div>
   );
@@ -614,6 +700,65 @@ function parseA2aTaskResult(value: string): A2aTaskResultPayload | null {
       };
     }
   } catch {
+    return null;
+  }
+  return null;
+}
+
+function parseMultiAgentResult(value: string): MultiAgentResultPayload | null {
+  try {
+    // 1. MultiAgentTool 的 output 也是 JSON 字符串。
+    //    kind 字段用来区分它和截图、搜索、MCP、A2A 等其他工具结果。
+    const payload = JSON.parse(value) as Partial<MultiAgentResultPayload>;
+
+    // 2. 做最小结构检查。
+    //    只在关键字段存在时进入多 Agent 专用卡片，避免普通文本被误判。
+    if (
+      payload.kind === "multi_agent_result" &&
+      typeof payload.task === "string" &&
+      typeof payload.manager === "string" &&
+      Array.isArray(payload.roles) &&
+      Array.isArray(payload.subtasks) &&
+      payload.review &&
+      typeof payload.review === "object" &&
+      typeof payload.final_answer === "string"
+    ) {
+      const review = payload.review as Partial<MultiAgentResultPayload["review"]>;
+
+      // 3. 归一化数组元素。
+      //    后端字段如果以后扩展，前端仍然只读取当前需要展示的字段。
+      return {
+        kind: "multi_agent_result",
+        task: payload.task,
+        manager: payload.manager,
+        roles: payload.roles.map((item) => ({
+          key: getString(item.key),
+          name: getString(item.name),
+          responsibility: getString(item.responsibility),
+          capability: getString(item.capability),
+        })),
+        subtasks: payload.subtasks.map((item) => ({
+          id: getString(item.id),
+          assignee: getString(item.assignee),
+          title: getString(item.title),
+          instruction: getString(item.instruction),
+          expected_output: getString(item.expected_output),
+          status: getString(item.status),
+          output: getString(item.output),
+        })),
+        review: {
+          reviewer: getString(review.reviewer),
+          status: getString(review.status),
+          comments: Array.isArray(review.comments)
+            ? review.comments.map((comment) => getString(comment))
+            : [],
+          improvement: getString(review.improvement),
+        },
+        final_answer: payload.final_answer,
+      };
+    }
+  } catch {
+    // 4. 不是 JSON 或不是多 Agent 结构时，交给普通文本预览。
     return null;
   }
   return null;

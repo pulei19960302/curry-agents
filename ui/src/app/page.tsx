@@ -21,8 +21,10 @@ import { fetchCurrentSandbox, fetchVncStatus, waitCurrentSandbox } from "./lib/s
 import type { VncStatusData } from "@/types/vnc";
 import { McpServerListData, McpToolListData } from "@/types/mcp";
 import { fetchMcpServers, fetchMcpTools } from "@/lib/mcp-api";
-import { A2aAgentCardData, A2aConceptsData } from "@/types/a2a";
-import { fetchA2aAgentCard, fetchA2aConcepts } from "@/lib/a2a-api";
+import { A2aAgentCardData, A2aConceptsData, A2aRemoteAgentListData } from "@/types/a2a";
+import { fetchA2aAgentCard, fetchA2aAgents, fetchA2aConcepts } from "@/lib/a2a-api";
+import { MultiAgentRoleListData } from "@/types/mutil-agent";
+import { fetchMultiAgentRoles } from "@/lib/multi-agent-api";
 
 export default function Home() {
   const [apiStatus, setApiStatus] = useState<LoadState<ApiStatusData>>({
@@ -51,6 +53,14 @@ export default function Home() {
     type: "loading",
   });
 
+  const [a2aAgents, setA2aAgents] = useState<LoadState<A2aRemoteAgentListData>>({
+    type: "loading",
+  });
+
+  const [multiAgentRoles, setMultiAgentRoles] = useState<LoadState<MultiAgentRoleListData>>({
+    type: "loading",
+  });
+
   const workspace = useSessionWorkspace();
   const agentThinking = useAgentThinking();
 
@@ -64,6 +74,8 @@ export default function Home() {
       mcpToolData,
       a2aAgentCard,
       a2aConcepts,
+      a2aAgentData,
+      multiAgentRoleData,
     ] = await Promise.all([
       requestApi<ApiStatusData>("/api/status"),
       requestApi<DatabaseStatusData>("/api/status/database"),
@@ -73,6 +85,8 @@ export default function Home() {
       fetchMcpTools(),
       fetchA2aAgentCard(),
       fetchA2aConcepts(),
+      fetchA2aAgents(),
+      fetchMultiAgentRoles(),
     ]);
     setApiStatus({ type: "ready", data: apiData });
     setDatabaseStatus({ type: "ready", data: databaseData });
@@ -81,6 +95,8 @@ export default function Home() {
     setMcpTools({ type: "ready", data: mcpToolData });
     setA2aAgentCard({ type: "ready", data: a2aAgentCard });
     setA2aConcepts({ type: "ready", data: a2aConcepts });
+    setA2aAgents({ type: "ready", data: a2aAgentData });
+    setMultiAgentRoles({ type: "ready", data: multiAgentRoleData });
   }
 
   async function refreshAll() {
@@ -96,6 +112,17 @@ export default function Home() {
         current.type === "loading" ? { type: "error", message } : current,
       );
       workspace.setActionError(message);
+    }
+  }
+
+  async function refreshMultiAgent() {
+    setMultiAgentRoles({ type: "loading" });
+    try {
+      const roles = await fetchMultiAgentRoles();
+      setMultiAgentRoles({ type: "ready", data: roles });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "unknown error";
+      setMultiAgentRoles({ type: "error", message });
     }
   }
 
@@ -146,14 +173,21 @@ export default function Home() {
   async function refreshA2a() {
     setA2aConcepts({ type: "loading" });
     setA2aAgentCard({ type: "loading" });
+    setA2aAgents({ type: "loading" });
     try {
-      const [concepts, agentCard] = await Promise.all([fetchA2aConcepts(), fetchA2aAgentCard()]);
+      const [concepts, agentCard, agents] = await Promise.all([
+        fetchA2aConcepts(),
+        fetchA2aAgentCard(),
+        fetchA2aAgents(),
+      ]);
       setA2aConcepts({ type: "ready", data: concepts });
       setA2aAgentCard({ type: "ready", data: agentCard });
+      setA2aAgents({ type: "ready", data: agents });
     } catch (error) {
       const message = error instanceof Error ? error.message : "unknown error";
       setA2aConcepts({ type: "error", message });
       setA2aAgentCard({ type: "error", message });
+      setA2aAgents({ type: "error", message });
     }
   }
 
@@ -253,6 +287,9 @@ export default function Home() {
               a2aAgentCard={a2aAgentCard}
               a2aConcepts={a2aConcepts}
               refreshA2a={refreshA2a}
+              onRefreshMultiAgent={refreshMultiAgent}
+              a2aAgents={a2aAgents}
+              multiAgentRoles={multiAgentRoles}
             />
           </div>
         </section>

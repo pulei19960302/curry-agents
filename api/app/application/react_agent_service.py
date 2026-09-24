@@ -250,7 +250,11 @@ class ReActAgentService:
         step_text = f"{title} {description} {expected_output}".strip()
         text = f"{goal} {step_text}".strip()
 
-        if self._needs_a2a_agent(text):
+        if self._needs_multi_agent(text):
+            tool = self.registry.get("multi_agent_collaborate")
+            arguments = {"task": self._extract_multi_agent_task(text)}
+
+        elif self._needs_a2a_agent(text):
             tool = self.registry.get("a2a_call")
             arguments = {
                 "agent_key": "demo_researcher",
@@ -302,6 +306,37 @@ class ReActAgentService:
             "arguments": result.arguments,
             "output": result.output,
         }
+
+    @staticmethod
+    def _needs_multi_agent(text: str) -> bool:
+        """判断当前步骤是否需要多 Agent 协作编排。"""
+
+        if any(keyword in text for keyword in ["A2A", "a2a", "远程 Agent", "远程智能体"]):
+            return False
+
+        keywords = [
+            "多 Agent",
+            "多Agent",
+            "多个 Agent",
+            "多个智能体",
+            "分工",
+            "协作",
+            "评审",
+            "Reviewer",
+            "Manager",
+            "Worker",
+            "汇总",
+        ]
+        return any(keyword in text for keyword in keywords)
+
+    @staticmethod
+    def _extract_multi_agent_task(text: str) -> str:
+        """从计划文本中提取多 Agent 协作任务。"""
+
+        clean_text = " ".join(text.split())
+        for keyword in ["多 Agent", "多Agent", "多个 Agent", "多个智能体"]:
+            clean_text = clean_text.replace(keyword, " ")
+        return " ".join(clean_text.split())[:400] or text[:400]
 
     @staticmethod
     def _needs_a2a_agent(text: str) -> bool:

@@ -4,7 +4,7 @@ from app.application.a2a_intro_service import A2aIntroService
 from app.application.a2a_service import A2aService
 from app.schemas.a2a import A2aConceptsResponse, A2aRoleResponse, A2aAgentCardResponse, A2aMessageDemoResponse, \
     A2aMessageSendRequest, A2aRemoteAgentListResponse, A2aTaskResultResponse, A2aAgentCardRequest, \
-    A2aMessageInvokeRequest
+    A2aMessageInvokeRequest, A2aRemoteAgentResponse
 from app.schemas.common import ApiResponse
 
 router = APIRouter(prefix="/a2a", tags=["a2a"])
@@ -55,8 +55,12 @@ async def send_a2a_demo_message(
 async def list_agents(
         service: A2aService = Depends(build_a2a_service),
 ) -> ApiResponse[A2aRemoteAgentListResponse]:
+    agents = service.list_agents()
+
     return ApiResponse(
-        data=A2aRemoteAgentListResponse.model_validate(service.list_agents())
+        data=A2aRemoteAgentListResponse(
+            item=[A2aRemoteAgentResponse.model_validate(agent) for agent in agents],
+        )
     )
 
 

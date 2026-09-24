@@ -2,6 +2,7 @@
 from app.domain.agent_core.tools import agent_tool, ToolRegistry
 from app.infrastructure.agent_tools.a2a import register_a2a_tools
 from app.infrastructure.agent_tools.mcp import register_mcp_tools
+from app.infrastructure.agent_tools.multi_agent import register_multi_agent_tools
 from app.infrastructure.agent_tools.sandbox_browser import register_sandbox_browser_tools
 from app.infrastructure.agent_tools.sandbox_file import register_sandbox_file_tools
 from app.infrastructure.agent_tools.sandbox_shell import register_sandbox_shell_tools
@@ -82,5 +83,7 @@ def build_builtin_tool_registry() -> ToolRegistry:
     register_mcp_tools(registry)  # 注册mcp
 
     register_a2a_tools(registry)  # 注册额外的agent
+
+    register_multi_agent_tools(registry)  # 注册多agent
 
     return registry
