@@ -5,101 +5,116 @@ import { useEffect, useState } from "react";
 
 import AppSidebar from "./components/app-sidebar";
 import ChatWorkspace from "./components/chat-workspace";
+import SettingsWorkspace from "./components/settings-workspace";
 import SessionPanel from "./components/session-panel";
 import StatusBadge from "./components/status-badge";
 import StatusPanel from "./components/status-panel";
 import useSessionWorkspace from "./hooks/use-session-workspace";
-import useAgentThinking from "./hooks/use-agent-thinking";
-
-import { requestApi } from "@/lib/api";
+import { fetchA2aAgentCard, fetchA2aAgents, fetchA2aConcepts } from "./lib/a2a-api";
+import { requestApi } from "./lib/api";
+import { fetchMcpServers, fetchMcpTools } from "./lib/mcp-api";
+import { fetchMultiAgentRoles } from "./lib/multi-agent-api";
+import { fetchCurrentSandbox, fetchVncStatus, waitCurrentSandbox } from "./lib/sandbox-api";
+import {
+  createSettingsIntegration,
+  deleteSettingsIntegration,
+  fetchAppSettings,
+  updateSettingsModule,
+} from "./lib/settings-api";
 import type { LoadState, StatusBadgeView } from "@/types/sessions";
 
-import type { ApiStatusData, DatabaseStatusData } from "@/types/api";
-import AgentThinkingPanel from "./components/agent-thinking-panel";
-import type { SandboxInstanceData } from "@/types/sandbox";
-import { fetchCurrentSandbox, fetchVncStatus, waitCurrentSandbox } from "./lib/sandbox-api";
 import type { VncStatusData } from "@/types/vnc";
-import { McpServerListData, McpToolListData } from "@/types/mcp";
-import { fetchMcpServers, fetchMcpTools } from "@/lib/mcp-api";
-import { A2aAgentCardData, A2aConceptsData, A2aRemoteAgentListData } from "@/types/a2a";
-import { fetchA2aAgentCard, fetchA2aAgents, fetchA2aConcepts } from "@/lib/a2a-api";
-import { MultiAgentRoleListData } from "@/types/mutil-agent";
-import { fetchMultiAgentRoles } from "@/lib/multi-agent-api";
+import type { MultiAgentRoleListData } from "@/types/mutil-agent";
+import type { SandboxInstanceData } from "@/types/sandbox";
+import type { ApiStatusData, DatabaseStatusData } from "@/types/api";
+import type { McpServerListData, McpToolListData } from "@/types/mcp";
+import type { A2aAgentCardData, A2aConceptsData, A2aRemoteAgentListData } from "@/types/a2a";
+import { AppSettingsData } from "@/types/setting";
 
 export default function Home() {
+  const [activeView, setActiveView] = useState<"workspace" | "settings">("workspace");
+  // API、数据库、Sandbox 都属于工作台的基础健康状态。
+  // 它们分开保存，方便某一项失败时只让对应面板进入 error 状态。
   const [apiStatus, setApiStatus] = useState<LoadState<ApiStatusData>>({
     type: "loading",
   });
   const [databaseStatus, setDatabaseStatus] = useState<LoadState<DatabaseStatusData>>({
     type: "loading",
   });
-
   const [sandboxStatus, setSandboxStatus] = useState<LoadState<SandboxInstanceData>>({
     type: "loading",
   });
-  const [sandboxRefreshing, setSandboxRefreshing] = useState(false);
-
   const [vncStatus, setVncStatus] = useState<LoadState<VncStatusData>>({
     type: "loading",
   });
-
   const [mcpServers, setMcpServers] = useState<LoadState<McpServerListData>>({ type: "loading" });
   const [mcpTools, setMcpTools] = useState<LoadState<McpToolListData>>({
     type: "loading",
   });
-
   const [a2aConcepts, setA2aConcepts] = useState<LoadState<A2aConceptsData>>({ type: "loading" });
   const [a2aAgentCard, setA2aAgentCard] = useState<LoadState<A2aAgentCardData>>({
     type: "loading",
   });
-
   const [a2aAgents, setA2aAgents] = useState<LoadState<A2aRemoteAgentListData>>({
     type: "loading",
   });
-
   const [multiAgentRoles, setMultiAgentRoles] = useState<LoadState<MultiAgentRoleListData>>({
     type: "loading",
   });
-
+  const [appSettings, setAppSettings] = useState<LoadState<AppSettingsData>>({
+    type: "loading",
+  });
+  const [sandboxRefreshing, setSandboxRefreshing] = useState(false);
   const workspace = useSessionWorkspace();
-  const agentThinking = useAgentThinking();
 
   async function loadStatus() {
+    // 页面初始化时一次性读取三类状态：
+    // 1. API 自身是否运行
+    // 2. 数据库是否可连接
+    // 3. 当前任务沙箱是否可用
+    // 这里请求的是主 API 暴露的 /api/sandboxes/current，
+    // 前端不直接访问 sandbox-api，避免把内部服务地址暴露给浏览器。
     const [
       apiData,
       databaseData,
       sandboxData,
-      vncStatus,
+      vncData,
       mcpServerData,
       mcpToolData,
-      a2aAgentCard,
-      a2aConcepts,
+      a2aConceptData,
+      a2aCardData,
       a2aAgentData,
       multiAgentRoleData,
+      appSettingsData,
     ] = await Promise.all([
       requestApi<ApiStatusData>("/api/status"),
       requestApi<DatabaseStatusData>("/api/status/database"),
       fetchCurrentSandbox(),
-      refreshVnc(),
+      fetchVncStatus(),
       fetchMcpServers(),
       fetchMcpTools(),
-      fetchA2aAgentCard(),
       fetchA2aConcepts(),
+      fetchA2aAgentCard(),
       fetchA2aAgents(),
       fetchMultiAgentRoles(),
+      fetchAppSettings(),
     ]);
     setApiStatus({ type: "ready", data: apiData });
     setDatabaseStatus({ type: "ready", data: databaseData });
     setSandboxStatus({ type: "ready", data: sandboxData });
+    setVncStatus({ type: "ready", data: vncData });
     setMcpServers({ type: "ready", data: mcpServerData });
     setMcpTools({ type: "ready", data: mcpToolData });
-    setA2aAgentCard({ type: "ready", data: a2aAgentCard });
-    setA2aConcepts({ type: "ready", data: a2aConcepts });
+    setA2aConcepts({ type: "ready", data: a2aConceptData });
+    setA2aAgentCard({ type: "ready", data: a2aCardData });
     setA2aAgents({ type: "ready", data: a2aAgentData });
     setMultiAgentRoles({ type: "ready", data: multiAgentRoleData });
+    setAppSettings({ type: "ready", data: appSettingsData });
   }
 
   async function refreshAll() {
+    // 左侧刷新按钮负责刷新“工作台整体状态”。
+    // 会话列表和健康状态一起刷新，避免页面显示旧会话但状态已经变化。
     workspace.setActionError(null);
     try {
       await Promise.all([loadStatus(), workspace.refreshSessions()]);
@@ -111,42 +126,59 @@ export default function Home() {
       setDatabaseStatus((current) =>
         current.type === "loading" ? { type: "error", message } : current,
       );
+      setVncStatus((current) =>
+        current.type === "loading" ? { type: "error", message } : current,
+      );
+      setMcpServers((current) =>
+        current.type === "loading" ? { type: "error", message } : current,
+      );
+      setMcpTools((current) => (current.type === "loading" ? { type: "error", message } : current));
+      setA2aConcepts((current) =>
+        current.type === "loading" ? { type: "error", message } : current,
+      );
+      setA2aAgentCard((current) =>
+        current.type === "loading" ? { type: "error", message } : current,
+      );
+      setA2aAgents((current) =>
+        current.type === "loading" ? { type: "error", message } : current,
+      );
+      setMultiAgentRoles((current) =>
+        current.type === "loading" ? { type: "error", message } : current,
+      );
+      setAppSettings((current) =>
+        current.type === "loading" ? { type: "error", message } : current,
+      );
       workspace.setActionError(message);
     }
   }
 
-  async function refreshMultiAgent() {
-    setMultiAgentRoles({ type: "loading" });
-    try {
-      const roles = await fetchMultiAgentRoles();
-      setMultiAgentRoles({ type: "ready", data: roles });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "unknown error";
-      setMultiAgentRoles({ type: "error", message });
+  function refreshContext() {
+    // 上下文工程面板只和当前会话相关，没有选中会话时不发请求。
+    if (workspace.selectedSessionId) {
+      workspace.loadSessionContext(workspace.selectedSessionId);
     }
   }
 
-  async function refreshMcp() {
-    setMcpServers({ type: "loading" });
-    setMcpTools({ type: "loading" });
-    try {
-      const [servers, tools] = await Promise.all([fetchMcpServers(), fetchMcpTools()]);
-      setMcpServers({ type: "ready", data: servers });
-      setMcpTools({ type: "ready", data: tools });
-    } catch (error) {
+  useEffect(() => {
+    loadStatus().catch((error) => {
       const message = error instanceof Error ? error.message : "unknown error";
+      setApiStatus({ type: "error", message });
+      setDatabaseStatus({ type: "error", message });
+      setSandboxStatus({ type: "error", message });
+      setVncStatus({ type: "error", message });
       setMcpServers({ type: "error", message });
       setMcpTools({ type: "error", message });
-    }
-  }
-
-  async function refreshContext() {
-    if (workspace.selectedSessionId) {
-      await workspace.loadSessionContext(workspace.selectedSessionId);
-    }
-  }
+      setA2aConcepts({ type: "error", message });
+      setA2aAgentCard({ type: "error", message });
+      setA2aAgents({ type: "error", message });
+      setMultiAgentRoles({ type: "error", message });
+      setAppSettings({ type: "error", message });
+    });
+  }, []);
 
   async function refreshSandbox() {
+    // 任务沙箱刷新按钮不只是重新读取状态，而是调用 wait 接口等待它变健康。
+    // 这样 Docker 刚启动、Sandbox 还在初始化时，用户点刷新有机会直接等到 ready。
     setSandboxRefreshing(true);
     try {
       const sandbox = await waitCurrentSandbox();
@@ -167,6 +199,20 @@ export default function Home() {
     } catch (error) {
       const message = error instanceof Error ? error.message : "unknown error";
       setVncStatus({ type: "error", message });
+    }
+  }
+
+  async function refreshMcp() {
+    setMcpServers({ type: "loading" });
+    setMcpTools({ type: "loading" });
+    try {
+      const [servers, tools] = await Promise.all([fetchMcpServers(), fetchMcpTools()]);
+      setMcpServers({ type: "ready", data: servers });
+      setMcpTools({ type: "ready", data: tools });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "unknown error";
+      setMcpServers({ type: "error", message });
+      setMcpTools({ type: "error", message });
     }
   }
 
@@ -191,13 +237,62 @@ export default function Home() {
     }
   }
 
-  useEffect(() => {
-    loadStatus().catch((error) => {
+  async function refreshMultiAgent() {
+    setMultiAgentRoles({ type: "loading" });
+    try {
+      const roles = await fetchMultiAgentRoles();
+      setMultiAgentRoles({ type: "ready", data: roles });
+    } catch (error) {
       const message = error instanceof Error ? error.message : "unknown error";
-      setApiStatus({ type: "error", message });
-      setDatabaseStatus({ type: "error", message });
-    });
-  }, []);
+      setMultiAgentRoles({ type: "error", message });
+    }
+  }
+
+  async function refreshSettings() {
+    setAppSettings({ type: "loading" });
+    try {
+      const settings = await fetchAppSettings();
+      setAppSettings({ type: "ready", data: settings });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "unknown error";
+      setAppSettings({ type: "error", message });
+    }
+  }
+
+  async function toggleSettingsModule(moduleKey: string, enabled: boolean) {
+    try {
+      await updateSettingsModule(moduleKey, { enabled });
+      await refreshSettings();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "unknown error";
+      setAppSettings({ type: "error", message });
+    }
+  }
+
+  async function addSettingsIntegration(payload: {
+    kind: string;
+    name: string;
+    description: string;
+    endpoint: string;
+  }) {
+    try {
+      await createSettingsIntegration(payload);
+      await refreshSettings();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "unknown error";
+      setAppSettings({ type: "error", message });
+    }
+  }
+
+  async function removeSettingsIntegration(integrationId: string) {
+    try {
+      await deleteSettingsIntegration(integrationId);
+      await refreshSettings();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "unknown error";
+      setAppSettings({ type: "error", message });
+    }
+  }
 
   const apiBadge = getBadge(apiStatus, "API 正常", "API 异常");
   const dbBadge = getBadge(databaseStatus, "数据库正常", "数据库异常");
@@ -207,10 +302,12 @@ export default function Home() {
       <div className="grid min-h-screen grid-cols-[320px_1fr] max-lg:grid-cols-1">
         <AppSidebar
           actionError={workspace.actionError}
+          activeView={activeView}
           onCreateSession={workspace.createSession}
           onDeleteSession={workspace.deleteSession}
           onRefresh={refreshAll}
           onSelectSession={workspace.selectSession}
+          onViewChange={setActiveView}
           onTitleChange={workspace.setTitle}
           selectedSessionId={workspace.selectedSessionId}
           sessions={workspace.sessions}
@@ -222,9 +319,15 @@ export default function Home() {
           <header className="flex min-h-16 items-center justify-between border-b border-slate-200 bg-white px-6 max-sm:flex-col max-sm:items-start max-sm:gap-3 max-sm:px-4 max-sm:py-4">
             <div>
               <h1 className="text-xl font-semibold tracking-normal text-slate-950">
-                {workspace.selectedSession?.title ?? "工作台"}
+                {activeView === "settings"
+                  ? "设置"
+                  : (workspace.selectedSession?.title ?? "工作台")}
               </h1>
-              <p className="mt-1 text-sm text-slate-500">创建会话后，可以发送第一条任务消息</p>
+              <p className="mt-1 text-sm text-slate-500">
+                {activeView === "settings"
+                  ? "集中管理模型、工具、远程 Agent 和多 Agent 配置"
+                  : "创建会话后，可以发送第一条任务消息"}
+              </p>
             </div>
             <div className="flex gap-2 max-sm:flex-wrap">
               <StatusBadge badge={apiBadge} />
@@ -233,64 +336,67 @@ export default function Home() {
           </header>
 
           <div className="grid gap-5 p-6 max-sm:p-4">
-            <section className="grid grid-cols-[1fr_1fr] gap-5 max-xl:grid-cols-1">
-              <StatusPanel apiStatus={apiStatus} databaseStatus={databaseStatus} />
-              <SessionPanel selectedSession={workspace.selectedSession} />
-            </section>
+            {activeView === "workspace" ? (
+              <>
+                <section className="grid grid-cols-[1fr_1fr] gap-5 max-xl:grid-cols-1">
+                  <StatusPanel apiStatus={apiStatus} databaseStatus={databaseStatus} />
+                  <SessionPanel selectedSession={workspace.selectedSession} />
+                </section>
 
-            <AgentThinkingPanel
-              comparison={agentThinking.comparison}
-              modes={agentThinking.modes}
-              onRun={agentThinking.runComparison}
-              onTaskChange={agentThinking.setTask}
-              running={agentThinking.running}
-              task={agentThinking.task}
-            />
-
-            <ChatWorkspace
-              attachments={workspace.attachments}
-              clearingUnread={workspace.clearingUnread}
-              draft={workspace.draft}
-              events={workspace.events}
-              files={workspace.files}
-              filePreview={workspace.filePreview}
-              messages={workspace.messages}
-              onCancelTask={workspace.cancelPlanTask}
-              onClearUnread={workspace.clearUnread}
-              onDraftChange={workspace.setDraft}
-              onPreviewFile={workspace.loadFilePreview}
-              onSend={workspace.sendMessage}
-              onSelectFile={workspace.selectFile}
-              onStop={workspace.stopSession}
-              onUploadFile={workspace.uploadAttachment}
-              selectedFile={workspace.selectedFile}
-              selectedSession={workspace.selectedSession}
-              sending={workspace.sendingMessage}
-              stopping={workspace.stoppingSession}
-              task={workspace.currentTask}
-              uploadingFile={workspace.uploadingFile}
-              onCreatePlan={workspace.createPlan}
-              plan={workspace.latestPlan}
-              planning={workspace.planning}
-              executingPlan={workspace.executingPlan}
-              onExecutePlan={workspace.executePlan}
-              context={workspace.context}
-              onRefreshContext={refreshContext}
-              onRefreshSandbox={refreshSandbox}
-              sandbox={sandboxStatus}
-              sandboxRefreshing={sandboxRefreshing}
-              vnc={vncStatus}
-              onRefreshVnc={refreshVnc}
-              onRefreshMcp={refreshMcp}
-              mcpServers={mcpServers}
-              mcpTools={mcpTools}
-              a2aAgentCard={a2aAgentCard}
-              a2aConcepts={a2aConcepts}
-              refreshA2a={refreshA2a}
-              onRefreshMultiAgent={refreshMultiAgent}
-              a2aAgents={a2aAgents}
-              multiAgentRoles={multiAgentRoles}
-            />
+                <ChatWorkspace
+                  a2aAgentCard={a2aAgentCard}
+                  a2aAgents={a2aAgents}
+                  a2aConcepts={a2aConcepts}
+                  attachments={workspace.attachments}
+                  clearingUnread={workspace.clearingUnread}
+                  context={workspace.context}
+                  draft={workspace.draft}
+                  events={workspace.events}
+                  files={workspace.files}
+                  filePreview={workspace.filePreview}
+                  messages={workspace.messages}
+                  onClearUnread={workspace.clearUnread}
+                  onCancelPlanTask={workspace.cancelPlanTask}
+                  onCreatePlan={workspace.createPlan}
+                  onDraftChange={workspace.setDraft}
+                  onExecutePlan={workspace.executePlan}
+                  onPreviewFile={workspace.loadFilePreview}
+                  onRefreshA2a={refreshA2a}
+                  onRefreshContext={refreshContext}
+                  onRefreshMcp={refreshMcp}
+                  onRefreshMultiAgent={refreshMultiAgent}
+                  onRefreshSandbox={refreshSandbox}
+                  onRefreshVnc={refreshVnc}
+                  onSend={workspace.sendMessage}
+                  onSelectFile={workspace.selectFile}
+                  onStop={workspace.stopSession}
+                  onUploadFile={workspace.uploadAttachment}
+                  executingPlan={workspace.executingPlan}
+                  plan={workspace.latestPlan}
+                  planning={workspace.planning}
+                  task={workspace.currentTask}
+                  mcpServers={mcpServers}
+                  mcpTools={mcpTools}
+                  multiAgentRoles={multiAgentRoles}
+                  sandbox={sandboxStatus}
+                  sandboxRefreshing={sandboxRefreshing}
+                  vnc={vncStatus}
+                  selectedFile={workspace.selectedFile}
+                  selectedSession={workspace.selectedSession}
+                  sending={workspace.sendingMessage}
+                  stopping={workspace.stoppingSession}
+                  uploadingFile={workspace.uploadingFile}
+                />
+              </>
+            ) : (
+              <SettingsWorkspace
+                onCreateIntegration={addSettingsIntegration}
+                onDeleteIntegration={removeSettingsIntegration}
+                onRefresh={refreshSettings}
+                onToggleModule={toggleSettingsModule}
+                settings={appSettings}
+              />
+            )}
           </div>
         </section>
       </div>

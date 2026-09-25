@@ -20,6 +20,9 @@ class A2aService:
     def list_agents(self) -> list[A2aRemoteAgentInfo]:
         return self.manager.list_agents()
 
+    def get_default_agent(self) -> str:
+        return self.manager.config.a2a.default_agent
+
     def get_agent_card(self, agent_key: str | None = None) -> A2aAgentCard:
         """读取指定远程 Agent 的 Agent Card。"""
 

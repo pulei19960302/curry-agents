@@ -1,11 +1,12 @@
 import AttachmentList from "./attachment-list";
 import AttachmentUpload from "./attachment-upload";
 import ChatInput from "./chat-input";
+import ContextPanel from "./context-panel";
 import EventTimeline from "./event-timeline";
 import MessageTimeline from "./message-timeline";
+import PlanPanel from "./plan-panel";
 import SessionControlBar from "./session-control-bar";
 import ToolPreviewPanel from "./tool-preview-panel";
-import PlanPanel from "./plan-panel";
 import type {
   AgentTaskItem,
   ChatMessage,
@@ -16,104 +17,102 @@ import type {
   SessionItem,
 } from "@/types/sessions";
 
-import type { FilePreviewData } from "@/types/files";
-
-import type { AgentPlan } from "@/types/planner";
-import ContextPanel from "@/components/context-panel";
-import type { SandboxInstanceData } from "@/types/sandbox";
-import { VncStatusData } from "@/types/vnc";
-import { McpServerListData, McpToolListData } from "@/types/mcp";
 import type { A2aAgentCardData, A2aConceptsData, A2aRemoteAgentListData } from "@/types/a2a";
-import { MultiAgentRoleListData } from "@/types/mutil-agent";
+import type { FilePreviewData } from "@/types/files";
+import type { McpServerListData, McpToolListData } from "@/types/mcp";
+import type { MultiAgentRoleListData } from "@/types/mutil-agent";
+import type { AgentPlan } from "@/types/planner";
+import type { VncStatusData } from "@/types/vnc";
+import type { SandboxInstanceData } from "@/types/sandbox";
 
 type ChatWorkspaceProps = {
+  a2aAgentCard: LoadState<A2aAgentCardData>;
+  a2aAgents: LoadState<A2aRemoteAgentListData>;
+  a2aConcepts: LoadState<A2aConceptsData>;
   attachments: SessionFileItem[];
   draft: string;
   clearingUnread: boolean;
   events: LoadState<SessionEventItem[]>;
+  context: LoadState<SessionContextData | null>;
   files: LoadState<SessionFileItem[]>;
   filePreview: LoadState<FilePreviewData | null>;
   messages: LoadState<ChatMessage[]>;
   onClearUnread: () => void;
-  onCancelTask: () => void;
+  onCancelPlanTask: () => void;
+  onCreatePlan: () => void;
+  onExecutePlan: () => void;
+  onRefreshContext: () => void;
+  onRefreshMcp: () => void;
+  onRefreshMultiAgent: () => void;
+  onRefreshSandbox: () => void;
+  onRefreshVnc: () => void;
   onDraftChange: (value: string) => void;
   onPreviewFile: (fileId: string) => void;
+  onRefreshA2a: () => void;
   onSend: () => void;
   onSelectFile: (file: SessionFileItem) => void;
   onStop: () => void;
   onUploadFile: (file: File) => void;
-  onCreatePlan: () => void;
-  onExecutePlan: () => void;
   selectedFile: SessionFileItem | null;
+  mcpServers: LoadState<McpServerListData>;
+  mcpTools: LoadState<McpToolListData>;
+  multiAgentRoles: LoadState<MultiAgentRoleListData>;
+  sandbox: LoadState<SandboxInstanceData>;
+  sandboxRefreshing: boolean;
+  vnc: LoadState<VncStatusData>;
   selectedSession: SessionItem | null;
+  plan: AgentPlan | null;
+  task: AgentTaskItem | null;
+  planning: boolean;
+  executingPlan: boolean;
   sending: boolean;
   stopping: boolean;
   uploadingFile: boolean;
-  plan: AgentPlan | null;
-  planning: boolean;
-  executingPlan: boolean;
-  task: AgentTaskItem | null;
-  context: LoadState<SessionContextData | null>;
-  onRefreshContext: () => void;
-  onRefreshSandbox: () => void;
-  sandbox: LoadState<SandboxInstanceData>;
-  sandboxRefreshing: boolean;
-  onRefreshVnc: () => void;
-  vnc: LoadState<VncStatusData>;
-  onRefreshMcp: () => void;
-  mcpServers: LoadState<McpServerListData>;
-  mcpTools: LoadState<McpToolListData>;
-  a2aAgentCard: LoadState<A2aAgentCardData>;
-  a2aConcepts: LoadState<A2aConceptsData>;
-  refreshA2a: () => void;
-  onRefreshMultiAgent: () => void;
-  a2aAgents: LoadState<A2aRemoteAgentListData>;
-  multiAgentRoles: LoadState<MultiAgentRoleListData>;
 };
 
 export default function ChatWorkspace({
+  a2aAgentCard,
+  a2aAgents,
+  a2aConcepts,
   attachments,
   clearingUnread,
+  context,
   draft,
   events,
   files,
   filePreview,
   messages,
-  onCancelTask,
   onClearUnread,
+  onCancelPlanTask,
+  onCreatePlan,
+  onExecutePlan,
+  onRefreshContext,
+  onRefreshMcp,
+  onRefreshMultiAgent,
+  onRefreshSandbox,
+  onRefreshVnc,
   onDraftChange,
   onPreviewFile,
+  onRefreshA2a,
   onSend,
   onSelectFile,
   onStop,
   onUploadFile,
-  onCreatePlan,
-  onExecutePlan,
   selectedFile,
+  mcpServers,
+  mcpTools,
+  multiAgentRoles,
+  sandbox,
+  sandboxRefreshing,
+  vnc,
   selectedSession,
+  plan,
+  task,
+  planning,
+  executingPlan,
   sending,
   stopping,
   uploadingFile,
-  plan,
-  planning,
-  executingPlan,
-  task,
-  context,
-  onRefreshContext,
-  onRefreshSandbox,
-  sandbox,
-  sandboxRefreshing,
-  onRefreshVnc,
-  vnc,
-  onRefreshMcp,
-  mcpServers,
-  mcpTools,
-  a2aAgentCard,
-  a2aConcepts,
-  refreshA2a,
-  onRefreshMultiAgent,
-  a2aAgents,
-  multiAgentRoles,
 }: ChatWorkspaceProps) {
   return (
     <section className="grid grid-cols-[1fr_280px] gap-5 max-xl:grid-cols-1">
@@ -124,28 +123,6 @@ export default function ChatWorkspace({
           onStop={onStop}
           selectedSession={selectedSession}
           stopping={stopping}
-        />
-        <ToolPreviewPanel
-          events={events}
-          files={files}
-          onPreviewFile={onPreviewFile}
-          onRefreshSandbox={onRefreshSandbox}
-          onRefreshVnc={onRefreshVnc}
-          onSelectFile={onSelectFile}
-          preview={filePreview}
-          sandbox={sandbox}
-          sandboxRefreshing={sandboxRefreshing}
-          selectedFile={selectedFile}
-          vnc={vnc}
-          onRefreshMcp={onRefreshMcp}
-          mcpServers={mcpServers}
-          mcpTools={mcpTools}
-          a2aAgentCard={a2aAgentCard}
-          a2aConcepts={a2aConcepts}
-          onRefreshA2a={refreshA2a}
-          onRefreshMultiAgent={onRefreshMultiAgent}
-          a2aAgents={a2aAgents}
-          multiAgentRoles={multiAgentRoles}
         />
         <MessageTimeline state={messages} />
         <div className="space-y-3 border-t border-slate-200 bg-slate-50 p-4">
@@ -171,18 +148,39 @@ export default function ChatWorkspace({
         <PlanPanel
           disabled={!selectedSession}
           executing={executingPlan}
-          onCancelTask={onCancelTask}
+          onCancelTask={onCancelPlanTask}
           onCreatePlan={onCreatePlan}
           onExecutePlan={onExecutePlan}
           plan={plan}
           planning={planning}
           task={task}
         />
-
+        <ToolPreviewPanel
+          a2aAgentCard={a2aAgentCard}
+          a2aAgents={a2aAgents}
+          a2aConcepts={a2aConcepts}
+          events={events}
+          files={files}
+          onPreviewFile={onPreviewFile}
+          onRefreshA2a={onRefreshA2a}
+          onRefreshMcp={onRefreshMcp}
+          onRefreshMultiAgent={onRefreshMultiAgent}
+          onRefreshSandbox={onRefreshSandbox}
+          onRefreshVnc={onRefreshVnc}
+          onSelectFile={onSelectFile}
+          preview={filePreview}
+          mcpServers={mcpServers}
+          mcpTools={mcpTools}
+          multiAgentRoles={multiAgentRoles}
+          sandbox={sandbox}
+          sandboxRefreshing={sandboxRefreshing}
+          selectedFile={selectedFile}
+          vnc={vnc}
+        />
         <ContextPanel context={context} disabled={!selectedSession} onRefresh={onRefreshContext} />
         <div className="rounded-md border border-slate-200 bg-white p-5">
           <h2 className="text-base font-semibold text-slate-950">事件记录</h2>
-          <p className="mt-1 text-sm text-slate-500">本章先展示消息创建事件</p>
+          <p className="mt-1 text-sm text-slate-500">展示消息、计划和步骤执行事件</p>
           <div className="mt-4">
             <EventTimeline state={events} />
           </div>

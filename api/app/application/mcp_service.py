@@ -17,6 +17,10 @@ class McpService:
 
         return self.manager.list_servers()
 
+    # 获取当前的默认mcp
+    def get_default_server(self) -> str:
+        return self.manager.config.mcp.default_server
+
     # 发现 MCP 工具
     def list_tools(self, server_name: str | None = None) -> list[McpTool]:
         """读取某个 Server 或全部 Server 暴露的工具。"""
