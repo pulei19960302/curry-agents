@@ -1,9 +1,10 @@
+import { useState } from "react";
+
 import AttachmentList from "./attachment-list";
 import AttachmentUpload from "./attachment-upload";
 import ChatInput from "./chat-input";
 import ContextPanel from "./context-panel";
-import EventTimeline from "./event-timeline";
-import MessageTimeline from "./message-timeline";
+import ConversationTimeline from "./conversation-timeline";
 import PlanPanel from "./plan-panel";
 import SessionControlBar from "./session-control-bar";
 import ToolPreviewPanel from "./tool-preview-panel";
@@ -114,6 +115,8 @@ export default function ChatWorkspace({
   stopping,
   uploadingFile,
 }: ChatWorkspaceProps) {
+  const [selectedToolEventId, setSelectedToolEventId] = useState<string | null>(null);
+
   return (
     <section className="grid grid-cols-[1fr_280px] gap-5 max-xl:grid-cols-1">
       <div className="flex min-h-[560px] flex-col overflow-hidden rounded-md border border-slate-200 bg-slate-50">
@@ -124,7 +127,14 @@ export default function ChatWorkspace({
           selectedSession={selectedSession}
           stopping={stopping}
         />
-        <MessageTimeline state={messages} />
+        <ConversationTimeline
+          events={events}
+          messages={messages}
+          onSelectToolEvent={setSelectedToolEventId}
+          plan={plan}
+          selectedToolEventId={selectedToolEventId}
+          task={task}
+        />
         <div className="space-y-3 border-t border-slate-200 bg-slate-50 p-4">
           <AttachmentUpload
             disabled={!selectedSession}
@@ -175,16 +185,10 @@ export default function ChatWorkspace({
           sandbox={sandbox}
           sandboxRefreshing={sandboxRefreshing}
           selectedFile={selectedFile}
+          selectedToolEventId={selectedToolEventId}
           vnc={vnc}
         />
         <ContextPanel context={context} disabled={!selectedSession} onRefresh={onRefreshContext} />
-        <div className="rounded-md border border-slate-200 bg-white p-5">
-          <h2 className="text-base font-semibold text-slate-950">事件记录</h2>
-          <p className="mt-1 text-sm text-slate-500">展示消息、计划和步骤执行事件</p>
-          <div className="mt-4">
-            <EventTimeline state={events} />
-          </div>
-        </div>
       </aside>
     </section>
   );

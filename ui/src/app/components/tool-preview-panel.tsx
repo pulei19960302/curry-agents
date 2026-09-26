@@ -3,62 +3,57 @@ import {
   Camera,
   FileText,
   FolderOpen,
+  GitBranch,
   Globe,
   Hammer,
   Network,
+  Plug,
   RefreshCcw,
   Search,
   Terminal,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
+import A2aPanel from "./a2a-panel";
 import SandboxStatusPanel from "./sandbox-status-panel";
+import McpPanel from "./mcp_panel";
+import MultiAgentPanel from "./multi-agent-panel";
 import SessionFilePanel from "./session-file-panel";
 import VncPanel from "./vnc-panel";
-import McpPanel from "@/components/mcp_panel";
 import { formatDateTime } from "@/lib/format";
-import type { VncStatusData } from "@/types/vnc";
-import { LoadState, SessionEventItem, SessionFileItem } from "@/types/sessions";
+import { parseString } from "@/utils";
+
+import type { LoadState, SessionEventItem, SessionFileItem } from "@/types/sessions";
+
+import type { A2aAgentCardData, A2aConceptsData, A2aRemoteAgentListData } from "@/types/a2a";
+import type { FilePreviewData } from "@/types/files";
+import type { McpServerListData, McpToolListData } from "@/types/mcp";
 import type { MultiAgentRoleListData } from "@/types/mutil-agent";
-import { FilePreviewData } from "@/types/files";
-import { SandboxInstanceData } from "@/types/sandbox";
-import { McpServerListData, McpToolListData } from "@/types/mcp";
-import { A2aAgentCardData, A2aConceptsData, A2aRemoteAgentListData } from "@/types/a2a";
-import A2aPanel from "@/components/a2a-panel";
-import MultiAgentPanel from "@/components/multi-agent-panel";
+import type { SandboxInstanceData } from "@/types/sandbox";
+import type { VncStatusData } from "@/types/vnc";
 
 type ToolPreviewPanelProps = {
+  a2aAgentCard: LoadState<A2aAgentCardData>;
+  a2aAgents: LoadState<A2aRemoteAgentListData>;
+  a2aConcepts: LoadState<A2aConceptsData>;
   events: LoadState<SessionEventItem[]>; // 会话事件列表，用来提取最近工具调用。
   files: LoadState<SessionFileItem[]>; // 会话文件列表，文件工具和附件都会沉淀到这里。
-  mcpServers: LoadState<McpServerListData>;
-  mcpTools: LoadState<McpToolListData>;
-  a2aAgents: LoadState<A2aRemoteAgentListData>;
-  multiAgentRoles: LoadState<MultiAgentRoleListData>; // 多 Agent 协作角色说明。
   onPreviewFile: (fileId: string) => void;
+  onRefreshA2a: () => void;
+  onRefreshMcp: () => void;
   onRefreshSandbox: () => void;
   onRefreshVnc: () => void;
-  onRefreshMcp: () => void;
   onSelectFile: (file: SessionFileItem) => void;
   preview: LoadState<FilePreviewData | null>;
+  mcpServers: LoadState<McpServerListData>; // MCP Server 配置状态。
+  mcpTools: LoadState<McpToolListData>; // MCP 工具发现结果。
+  multiAgentRoles: LoadState<MultiAgentRoleListData>; // 多 Agent 协作角色说明。
+  onRefreshMultiAgent: () => void;
   sandbox: LoadState<SandboxInstanceData>; // 当前任务沙箱状态。
   sandboxRefreshing: boolean;
   selectedFile: SessionFileItem | null;
+  selectedToolEventId: string | null; // 中间对话流里选中的工具调用事件。
   vnc: LoadState<VncStatusData>; // VNC 连接信息，用于浏览器实时观察。
-  a2aAgentCard: LoadState<A2aAgentCardData>;
-  a2aConcepts: LoadState<A2aConceptsData>;
-  onRefreshA2a: () => void;
-  onRefreshMultiAgent: () => void;
-};
-
-type A2aTaskResultPayload = {
-  kind: "a2a_task_result";
-  agent_key: string;
-  remote_agent: string;
-  task_id: string;
-  status: string;
-  input_message: Array<{ kind: string; text: string }>;
-  output_message: Array<{ kind: string; text: string }>;
-  steps: Array<{ index: number; action: string; detail: string }>;
 };
 
 type PreviewTab = "tools" | "files" | "environment";
@@ -89,6 +84,17 @@ type McpToolResultPayload = {
   content: Array<Record<string, unknown>>;
 };
 
+type A2aTaskResultPayload = {
+  kind: "a2a_task_result";
+  agent_key: string;
+  remote_agent: string;
+  task_id: string;
+  status: string;
+  input_message: Array<{ kind: string; text: string }>;
+  output_message: Array<{ kind: string; text: string }>;
+  steps: Array<{ index: number; action: string; detail: string }>;
+};
+
 type MultiAgentResultPayload = {
   kind: "multi_agent_result";
   task: string;
@@ -117,32 +123,40 @@ type MultiAgentResultPayload = {
   final_answer: string;
 };
 
-// 统一展示工具调用、文件和沙箱观察
+// ===================== 第1步：统一展示工具调用、文件和沙箱观察 =====================
 export default function ToolPreviewPanel({
+  a2aAgentCard,
+  a2aAgents,
+  a2aConcepts,
   events,
   files,
   onPreviewFile,
+  onRefreshA2a,
+  onRefreshMcp,
   onRefreshSandbox,
   onRefreshVnc,
-  onRefreshMcp,
   onSelectFile,
   preview,
+  mcpServers,
+  mcpTools,
+  multiAgentRoles,
+  onRefreshMultiAgent,
   sandbox,
   sandboxRefreshing,
   selectedFile,
+  selectedToolEventId,
   vnc,
-  mcpServers,
-  mcpTools,
-  a2aAgentCard,
-  a2aConcepts,
-  onRefreshA2a,
-  onRefreshMultiAgent,
-  multiAgentRoles,
-  a2aAgents,
 }: ToolPreviewPanelProps) {
   const [activeTab, setActiveTab] = useState<PreviewTab>("tools");
   const toolEvents = useMemo(() => getToolEvents(events), [events]);
-  const latestToolEvent = toolEvents[0] ?? null;
+  const selectedToolEvent = toolEvents.find((event) => event.id === selectedToolEventId) ?? null;
+  const latestToolEvent = selectedToolEvent ?? toolEvents[0] ?? null;
+
+  useEffect(() => {
+    if (selectedToolEventId) {
+      setActiveTab("tools");
+    }
+  }, [selectedToolEventId]);
 
   return (
     <section className="rounded-md border border-slate-200 bg-white p-5">
@@ -193,14 +207,14 @@ export default function ToolPreviewPanel({
               state={sandbox}
             />
             <McpPanel onRefresh={onRefreshMcp} servers={mcpServers} tools={mcpTools} />
-            <VncPanel onRefresh={onRefreshVnc} state={vnc} />
             <A2aPanel
               agentCard={a2aAgentCard}
+              agents={a2aAgents}
               concepts={a2aConcepts}
               onRefresh={onRefreshA2a}
-              agents={a2aAgents}
             />
             <MultiAgentPanel onRefresh={onRefreshMultiAgent} roles={multiAgentRoles} />
+            <VncPanel onRefresh={onRefreshVnc} state={vnc} />
           </div>
         ) : null}
       </div>
@@ -267,14 +281,28 @@ function ToolCallView({
 }
 
 function ToolCallDetail({ event }: { event: SessionEventItem }) {
-  const toolName = getString(event.payload.tool_name);
-  const output = getString(event.payload.output);
+  // 1. 从 tool_called 事件中取出工具名和输出。
+  //    后端所有工具结果都会先进入 session_events，再由这个面板统一展示。
+  const toolName = parseString(event.payload.tool_name);
+  const output = parseString(event.payload.output);
+
+  // 2. 尝试把 output 解析成不同工具的结构化结果。
+  //    解析成功就用专门卡片展示，解析失败就回退为普通文本。
   const screenshot = parseScreenshot(output);
   const searchResults = parseSearchResults(output);
   const mcpResult = parseMcpToolResult(output);
   const a2aResult = parseA2aTaskResult(output);
-  const Icon = getToolIcon(toolName, screenshot, searchResults);
   const multiAgentResult = parseMultiAgentResult(output);
+
+  // 3. 根据工具类型选择图标，让用户快速分辨这次调用属于哪类能力。
+  const Icon = getToolIcon(
+    toolName,
+    screenshot,
+    searchResults,
+    mcpResult,
+    a2aResult,
+    multiAgentResult,
+  );
 
   return (
     <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
@@ -312,11 +340,21 @@ function ToolCallDetail({ event }: { event: SessionEventItem }) {
 }
 
 function ToolCallSummary({ event }: { event: SessionEventItem }) {
-  const toolName = getString(event.payload.tool_name);
-  const output = getString(event.payload.output);
+  const toolName = parseString(event.payload.tool_name);
+  const output = parseString(event.payload.output);
   const screenshot = parseScreenshot(output);
   const searchResults = parseSearchResults(output);
-  const Icon = getToolIcon(toolName, screenshot, searchResults);
+  const mcpResult = parseMcpToolResult(output);
+  const a2aResult = parseA2aTaskResult(output);
+  const multiAgentResult = parseMultiAgentResult(output);
+  const Icon = getToolIcon(
+    toolName,
+    screenshot,
+    searchResults,
+    mcpResult,
+    a2aResult,
+    multiAgentResult,
+  );
 
   return (
     <div className="flex items-center justify-between gap-3 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm">
@@ -414,60 +452,40 @@ function McpResultPreview({ result }: { result: McpToolResultPayload }) {
 }
 
 function A2aResultPreview({ result }: { result: A2aTaskResultPayload }) {
-  const statusClassName =
-    result.status === "completed"
-      ? "bg-emerald-50 text-emerald-700"
-      : result.status === "failed"
-        ? "bg-rose-50 text-rose-700"
-        : "bg-amber-50 text-amber-700";
-
+  // 这个组件只负责展示 A2A 工具结果。
+  // 数据已经在 parseA2aTaskResult 中做过结构检查，所以这里可以直接渲染。
   return (
-    <div className="mt-3 overflow-hidden rounded-md border border-slate-200 bg-white">
+    <div className="mt-3 rounded-md border border-slate-200 bg-white">
       <div className="border-b border-slate-200 px-3 py-2">
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <div className="text-xs font-medium text-slate-500">A2A 调用结果</div>
-            <div className="mt-1 flex items-center gap-2 text-sm font-semibold text-slate-950">
-              <Network className="shrink-0 text-slate-500" size={15} aria-hidden="true" />
-              <span className="truncate">{result.remote_agent || result.agent_key}</span>
-            </div>
-          </div>
-          <span className={`shrink-0 rounded px-2 py-1 text-xs font-medium ${statusClassName}`}>
-            {result.status}
-          </span>
-        </div>
-        <div className="mt-2 grid gap-1 text-xs text-slate-500 sm:grid-cols-2">
-          <div className="truncate">Agent key: {result.agent_key}</div>
-          <div className="truncate sm:text-right" title={result.task_id}>
-            Task ID: {result.task_id}
-          </div>
+        <div className="text-xs font-medium text-slate-500">A2A 远程 Agent</div>
+        <div className="mt-1 text-sm font-semibold text-slate-950">{result.remote_agent}</div>
+        <div className="mt-1 text-xs text-slate-500">
+          {result.agent_key} · {result.task_id} · {result.status}
         </div>
       </div>
-
       <div className="grid gap-3 p-3">
-        <MessageParts title="发送消息" parts={result.input_message} />
-        <MessageParts title="返回消息" parts={result.output_message} />
-
-        {result.steps.length > 0 ? (
-          <div>
-            <div className="mb-2 text-xs font-medium text-slate-500">协作步骤</div>
-            <ol className="grid gap-2">
-              {result.steps.map((step) => (
-                <li className="flex gap-2" key={`${step.index}-${step.action}`}>
-                  <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-slate-100 text-[11px] font-semibold text-slate-600">
-                    {step.index}
-                  </span>
-                  <div className="min-w-0">
-                    <div className="text-xs font-semibold text-slate-800">{step.action}</div>
-                    {step.detail ? (
-                      <p className="mt-0.5 text-xs leading-5 text-slate-600">{step.detail}</p>
-                    ) : null}
-                  </div>
-                </li>
-              ))}
-            </ol>
+        <div>
+          <div className="mb-1 text-xs font-medium text-slate-500">远程输出</div>
+          <div className="rounded-md bg-slate-50 p-2 text-xs leading-5 text-slate-700">
+            {result.output_message.map((part) => part.text).join("\n") || "暂无输出"}
           </div>
-        ) : null}
+        </div>
+        <div>
+          <div className="mb-1 text-xs font-medium text-slate-500">协作步骤</div>
+          <div className="grid gap-2">
+            {result.steps.map((step) => (
+              <div
+                className="rounded-md border border-slate-200 bg-slate-50 px-2 py-1.5"
+                key={`${step.index}-${step.action}`}
+              >
+                <div className="text-xs font-semibold text-slate-900">
+                  {step.index}. {step.action}
+                </div>
+                <p className="mt-1 text-xs leading-5 text-slate-600">{step.detail}</p>
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -521,34 +539,6 @@ function MultiAgentResultPreview({ result }: { result: MultiAgentResultPayload }
   );
 }
 
-function MessageParts({
-  parts,
-  title,
-}: {
-  parts: A2aTaskResultPayload["input_message"];
-  title: string;
-}) {
-  return (
-    <div>
-      <div className="mb-1 text-xs font-medium text-slate-500">{title}</div>
-      <div className="grid gap-2">
-        {parts.length > 0 ? (
-          parts.map((part, index) => (
-            <div className="rounded-md bg-slate-50 p-2" key={`${part.kind}-${index}`}>
-              <div className="text-[11px] font-medium text-slate-400">{part.kind}</div>
-              <p className="mt-1 text-xs leading-5 whitespace-pre-wrap text-slate-700">
-                {part.text}
-              </p>
-            </div>
-          ))
-        ) : (
-          <div className="rounded-md bg-slate-50 p-2 text-xs text-slate-400">暂无消息</div>
-        )}
-      </div>
-    </div>
-  );
-}
-
 function EmptyState({ icon: Icon, text }: { icon: typeof Bot; text: string }) {
   return (
     <div className="flex items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-500">
@@ -571,6 +561,9 @@ function getToolIcon(
   toolName: string,
   screenshot: ScreenshotPayload | null,
   searchResults: SearchResultsPayload | null,
+  mcpResult: McpToolResultPayload | null,
+  a2aResult: A2aTaskResultPayload | null,
+  multiAgentResult: MultiAgentResultPayload | null,
 ) {
   if (screenshot) {
     return Camera;
@@ -578,8 +571,14 @@ function getToolIcon(
   if (searchResults || toolName.startsWith("search_")) {
     return Search;
   }
-  if (toolName.startsWith("a2a_")) {
+  if (mcpResult || toolName.startsWith("mcp_")) {
+    return Plug;
+  }
+  if (a2aResult || toolName.startsWith("a2a_")) {
     return Network;
+  }
+  if (multiAgentResult || toolName.startsWith("multi_agent_")) {
+    return GitBranch;
   }
   if (toolName.startsWith("browser_")) {
     return Globe;
@@ -629,9 +628,9 @@ function parseSearchResults(value: string): SearchResultsPayload | null {
         provider: payload.provider,
         query: payload.query,
         items: payload.items.map((item) => ({
-          title: getString(item.title),
-          url: getString(item.url),
-          snippet: getString(item.snippet),
+          title: parseString(item.title),
+          url: parseString(item.url),
+          snippet: parseString(item.snippet),
         })),
       };
     }
@@ -639,10 +638,6 @@ function parseSearchResults(value: string): SearchResultsPayload | null {
     return null;
   }
   return null;
-}
-
-function getString(value: unknown): string {
-  return typeof value === "string" ? value : "";
 }
 
 function parseMcpToolResult(value: string): McpToolResultPayload | null {
@@ -676,8 +671,12 @@ function parseMcpToolResult(value: string): McpToolResultPayload | null {
 
 function parseA2aTaskResult(value: string): A2aTaskResultPayload | null {
   try {
-    // 只有 kind=a2a_task_result 时，才按 a2a 工具卡片渲染。
+    // 1. A2aAgentTool 的 output 是 JSON 字符串。
+    //    如果不是 JSON，说明它不是 A2A 结构化结果，直接返回 null。
     const payload = JSON.parse(value) as Partial<A2aTaskResultPayload>;
+
+    // 2. kind 是工具结果协议的分流字段。
+    //    只有 kind=a2a_task_result 时，才按远程 Agent 协作结果卡片渲染。
     if (
       payload.kind === "a2a_task_result" &&
       typeof payload.agent_key === "string" &&
@@ -688,18 +687,32 @@ function parseA2aTaskResult(value: string): A2aTaskResultPayload | null {
       Array.isArray(payload.output_message) &&
       Array.isArray(payload.steps)
     ) {
+      // 3. 做一次轻量归一化。
+      //    后端返回的数组元素即使缺字段，前端也尽量用空字符串兜底。
       return {
         kind: "a2a_task_result",
         agent_key: payload.agent_key,
         remote_agent: payload.remote_agent,
         task_id: payload.task_id,
         status: payload.status,
-        input_message: payload.input_message,
-        output_message: payload.output_message,
-        steps: payload.steps,
+        input_message: payload.input_message.map((item) => ({
+          kind: parseString(item.kind),
+          text: parseString(item.text),
+        })),
+        output_message: payload.output_message.map((item) => ({
+          kind: parseString(item.kind),
+          text: parseString(item.text),
+        })),
+        steps: payload.steps.map((item, index) => ({
+          index: typeof item.index === "number" ? item.index : index + 1,
+          action: parseString(item.action),
+          detail: parseString(item.detail),
+        })),
       };
     }
   } catch {
+    // 4. 解析失败不是页面错误。
+    //    其他工具的普通文本输出也会走到这里，所以静默返回 null。
     return null;
   }
   return null;
@@ -732,27 +745,27 @@ function parseMultiAgentResult(value: string): MultiAgentResultPayload | null {
         task: payload.task,
         manager: payload.manager,
         roles: payload.roles.map((item) => ({
-          key: getString(item.key),
-          name: getString(item.name),
-          responsibility: getString(item.responsibility),
-          capability: getString(item.capability),
+          key: parseString(item.key),
+          name: parseString(item.name),
+          responsibility: parseString(item.responsibility),
+          capability: parseString(item.capability),
         })),
         subtasks: payload.subtasks.map((item) => ({
-          id: getString(item.id),
-          assignee: getString(item.assignee),
-          title: getString(item.title),
-          instruction: getString(item.instruction),
-          expected_output: getString(item.expected_output),
-          status: getString(item.status),
-          output: getString(item.output),
+          id: parseString(item.id),
+          assignee: parseString(item.assignee),
+          title: parseString(item.title),
+          instruction: parseString(item.instruction),
+          expected_output: parseString(item.expected_output),
+          status: parseString(item.status),
+          output: parseString(item.output),
         })),
         review: {
-          reviewer: getString(review.reviewer),
-          status: getString(review.status),
+          reviewer: parseString(review.reviewer),
+          status: parseString(review.status),
           comments: Array.isArray(review.comments)
-            ? review.comments.map((comment) => getString(comment))
+            ? review.comments.map((comment) => parseString(comment))
             : [],
-          improvement: getString(review.improvement),
+          improvement: parseString(review.improvement),
         },
         final_answer: payload.final_answer,
       };
