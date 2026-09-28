@@ -259,7 +259,7 @@ function StepCard({
 
   return (
     <div className="relative">
-      <div className="absolute top-2 -left-[43px] flex h-7 w-7 items-center justify-center rounded-full border border-zinc-800 bg-[#08090d]">
+      <div className="absolute -left-[43px] flex h-7 w-7 items-center justify-center rounded-full border border-zinc-800 bg-[#08090d]">
         {completed ? (
           <Check className="text-blue-400" size={17} aria-hidden="true" />
         ) : running ? (
