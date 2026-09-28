@@ -24,3 +24,10 @@ export type PlanCreateData = {
 export type PlanExecuteData = {
   events: SessionEventItem[];
 };
+
+export type PlanStepView = PlanStep & {
+  startedAt: string | null;
+  completedAt: string | null;
+  toolEvent: SessionEventItem | null;
+  summary: string;
+};

@@ -1,66 +1,38 @@
 import { useState } from "react";
 
-import AttachmentList from "./attachment-list";
-import AttachmentUpload from "./attachment-upload";
-import ChatInput from "./chat-input";
-import ContextPanel from "./context-panel";
-import ConversationTimeline from "./conversation-timeline";
-import PlanPanel from "./plan-panel";
-import SessionControlBar from "./session-control-bar";
-import ToolPreviewPanel from "./tool-preview-panel";
+import FilePreviewPanel from "@/components/file-preview-panel";
+import ToolPreviewPanel from "@/components/tool-preview-panel";
+import ChatInput from "@/components/chat-input";
+import AttachmentList from "@/components/attachment-list";
+import AttachmentUpload from "@/components/attachment-upload";
+import ConversationTimeline from "@/components/conversation-timeline";
+import SessionControlBar from "@/components/session-control-bar";
 import type {
   AgentTaskItem,
   ChatMessage,
   LoadState,
-  SessionContextData,
   SessionEventItem,
   SessionFileItem,
   SessionItem,
 } from "@/types/sessions";
-
-import type { A2aAgentCardData, A2aConceptsData, A2aRemoteAgentListData } from "@/types/a2a";
 import type { FilePreviewData } from "@/types/files";
-import type { McpServerListData, McpToolListData } from "@/types/mcp";
-import type { MultiAgentRoleListData } from "@/types/mutil-agent";
 import type { AgentPlan } from "@/types/planner";
-import type { VncStatusData } from "@/types/vnc";
-import type { SandboxInstanceData } from "@/types/sandbox";
 
 type ChatWorkspaceProps = {
-  a2aAgentCard: LoadState<A2aAgentCardData>;
-  a2aAgents: LoadState<A2aRemoteAgentListData>;
-  a2aConcepts: LoadState<A2aConceptsData>;
   attachments: SessionFileItem[];
   draft: string;
   clearingUnread: boolean;
   events: LoadState<SessionEventItem[]>;
-  context: LoadState<SessionContextData | null>;
-  files: LoadState<SessionFileItem[]>;
   filePreview: LoadState<FilePreviewData | null>;
   messages: LoadState<ChatMessage[]>;
   onClearUnread: () => void;
-  onCancelPlanTask: () => void;
-  onCreatePlan: () => void;
-  onExecutePlan: () => void;
-  onRefreshContext: () => void;
-  onRefreshMcp: () => void;
-  onRefreshMultiAgent: () => void;
-  onRefreshSandbox: () => void;
-  onRefreshVnc: () => void;
   onDraftChange: (value: string) => void;
   onPreviewFile: (fileId: string) => void;
-  onRefreshA2a: () => void;
   onSend: () => void;
-  onSelectFile: (file: SessionFileItem) => void;
+  onSelectFile: (file: SessionFileItem | null) => void;
   onStop: () => void;
   onUploadFile: (file: File) => void;
   selectedFile: SessionFileItem | null;
-  mcpServers: LoadState<McpServerListData>;
-  mcpTools: LoadState<McpToolListData>;
-  multiAgentRoles: LoadState<MultiAgentRoleListData>;
-  sandbox: LoadState<SandboxInstanceData>;
-  sandboxRefreshing: boolean;
-  vnc: LoadState<VncStatusData>;
   selectedSession: SessionItem | null;
   plan: AgentPlan | null;
   task: AgentTaskItem | null;
@@ -72,40 +44,20 @@ type ChatWorkspaceProps = {
 };
 
 export default function ChatWorkspace({
-  a2aAgentCard,
-  a2aAgents,
-  a2aConcepts,
   attachments,
   clearingUnread,
-  context,
   draft,
   events,
-  files,
   filePreview,
   messages,
   onClearUnread,
-  onCancelPlanTask,
-  onCreatePlan,
-  onExecutePlan,
-  onRefreshContext,
-  onRefreshMcp,
-  onRefreshMultiAgent,
-  onRefreshSandbox,
-  onRefreshVnc,
   onDraftChange,
   onPreviewFile,
-  onRefreshA2a,
   onSend,
   onSelectFile,
   onStop,
   onUploadFile,
   selectedFile,
-  mcpServers,
-  mcpTools,
-  multiAgentRoles,
-  sandbox,
-  sandboxRefreshing,
-  vnc,
   selectedSession,
   plan,
   task,
@@ -116,10 +68,23 @@ export default function ChatWorkspace({
   uploadingFile,
 }: ChatWorkspaceProps) {
   const [selectedToolEventId, setSelectedToolEventId] = useState<string | null>(null);
+  const hasToolPreview = selectedToolEventId !== null;
+  const hasFilePreview = selectedToolEventId === null && selectedFile !== null;
+  const hasPreview = hasToolPreview || hasFilePreview;
+
+  function openFilePreview(file: SessionFileItem) {
+    setSelectedToolEventId(null);
+    onSelectFile(file);
+    onPreviewFile(file.file.id);
+  }
 
   return (
-    <section className="grid grid-cols-[1fr_280px] gap-5 max-xl:grid-cols-1">
-      <div className="flex min-h-[560px] flex-col overflow-hidden rounded-md border border-slate-200 bg-slate-50">
+    <section className="flex h-[calc(100vh-80px)] min-h-[720px] gap-0 overflow-hidden max-xl:h-auto max-xl:flex-col">
+      <div
+        className={`flex min-h-0 flex-1 flex-col overflow-hidden ${
+          hasPreview ? "" : "mx-auto w-full"
+        }`}
+      >
         <SessionControlBar
           clearingUnread={clearingUnread}
           onClearUnread={onClearUnread}
@@ -130,66 +95,54 @@ export default function ChatWorkspace({
         <ConversationTimeline
           events={events}
           messages={messages}
-          onSelectToolEvent={setSelectedToolEventId}
+          onSelectToolEvent={(eventId) => {
+            onSelectFile(null);
+            setSelectedToolEventId(eventId);
+          }}
+          executing={executingPlan}
           plan={plan}
+          planning={planning}
           selectedToolEventId={selectedToolEventId}
           task={task}
         />
-        <div className="space-y-3 border-t border-slate-200 bg-slate-50 p-4">
-          <AttachmentUpload
-            disabled={!selectedSession}
-            onUpload={onUploadFile}
-            uploading={uploadingFile}
-          />
-          <AttachmentList files={attachments.map((item) => item.file)} />
-        </div>
-        <div className="mt-auto">
+        <div className="mt-auto border-t border-white/10 bg-black/45 px-8 py-5 backdrop-blur-xl">
+          <div className="mx-auto max-w-5xl space-y-3">
+            <AttachmentUpload
+              disabled={!selectedSession}
+              onUpload={onUploadFile}
+              uploading={uploadingFile}
+            />
+            <AttachmentList files={attachments} onSelectFile={openFilePreview} />
+          </div>
           <ChatInput
             disabled={!selectedSession}
             draft={draft}
             onDraftChange={onDraftChange}
             onSend={onSend}
-            sending={sending}
+            sending={sending || planning || executingPlan}
           />
         </div>
       </div>
 
-      <aside className="space-y-5">
-        <PlanPanel
-          disabled={!selectedSession}
-          executing={executingPlan}
-          onCancelTask={onCancelPlanTask}
-          onCreatePlan={onCreatePlan}
-          onExecutePlan={onExecutePlan}
-          plan={plan}
-          planning={planning}
-          task={task}
-        />
-        <ToolPreviewPanel
-          a2aAgentCard={a2aAgentCard}
-          a2aAgents={a2aAgents}
-          a2aConcepts={a2aConcepts}
-          events={events}
-          files={files}
-          onPreviewFile={onPreviewFile}
-          onRefreshA2a={onRefreshA2a}
-          onRefreshMcp={onRefreshMcp}
-          onRefreshMultiAgent={onRefreshMultiAgent}
-          onRefreshSandbox={onRefreshSandbox}
-          onRefreshVnc={onRefreshVnc}
-          onSelectFile={onSelectFile}
-          preview={filePreview}
-          mcpServers={mcpServers}
-          mcpTools={mcpTools}
-          multiAgentRoles={multiAgentRoles}
-          sandbox={sandbox}
-          sandboxRefreshing={sandboxRefreshing}
-          selectedFile={selectedFile}
-          selectedToolEventId={selectedToolEventId}
-          vnc={vnc}
-        />
-        <ContextPanel context={context} disabled={!selectedSession} onRefresh={onRefreshContext} />
-      </aside>
+      {hasToolPreview ? (
+        <aside className="h-full w-[560px] shrink-0 border-l border-white/10 bg-black/75 max-xl:h-[640px] max-xl:w-full">
+          <ToolPreviewPanel
+            events={events}
+            onClose={() => setSelectedToolEventId(null)}
+            selectedToolEventId={selectedToolEventId}
+          />
+        </aside>
+      ) : null}
+      {hasFilePreview ? (
+        <aside className="h-full w-[560px] shrink-0 border-l border-white/10 bg-black/75 max-xl:h-[640px] max-xl:w-full">
+          <FilePreviewPanel
+            onClose={() => onSelectFile(null)}
+            onPreview={onPreviewFile}
+            preview={filePreview}
+            selectedFile={selectedFile}
+          />
+        </aside>
+      ) : null}
     </section>
   );
 }

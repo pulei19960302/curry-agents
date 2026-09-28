@@ -49,6 +49,8 @@ class SessionEventType(StrEnum):
     step_completed = "step_completed"
     task_done = "task_done"
     task_error = "task_error"
+    task_stopped = "task_stopped"
+    task_failed = "task_failed"
 
 
 @dataclass(slots=True)

@@ -1,10 +1,9 @@
 from datetime import datetime
-from typing import TypedDict, Unpack
-from uuid import UUID
-
 from sqlalchemy import Select, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql.elements import ColumnElement
+from typing import TypedDict, Unpack
+from uuid import UUID
 
 from app.domain.sessions.entities import (Session, SessionStatus,
                                           SessionMessage, MessageRole,
@@ -26,13 +25,12 @@ class SqlAlchemySessionRepository(SessionRepository):
     def __init__(self, db_session: AsyncSession) -> None:
         self.db_session = db_session
 
-
     # 新增session 会话
-    async def add(self, title:str) -> Session:
+    async def add(self, title: str) -> Session:
         model = SessionModel(
-            title = title,
+            title=title,
             status=SessionStatus.idle.value,
-            unread_count= 0
+            unread_count=0
         )
         self.db_session.add(model)
         # flush() 会把新增对象发送到数据库，但不提交事务。
@@ -40,8 +38,6 @@ class SqlAlchemySessionRepository(SessionRepository):
         await self.db_session.refresh(model)
 
         return model.to_entity()
-
-
 
     # 根据session id 查询
     async def get(self, session_id: UUID) -> Session | None:
@@ -60,7 +56,6 @@ class SqlAlchemySessionRepository(SessionRepository):
     async def soft_delete(self, session_id: UUID) -> bool:
         model = await self._update_active(session_id, deleted_at=func.now())
         return model is not None
-
 
     # 根据id更新
     async def touch(self, session_id: UUID) -> bool:
@@ -95,19 +90,39 @@ class SqlAlchemySessionRepository(SessionRepository):
         )
         return model.to_entity() if model is not None else None
 
+    async def transition_status(self, session_id: UUID,
+                                expected_statuses: tuple[SessionStatus, ...],
+                                target_status: SessionStatus) -> Session | None:
+        stmt = (
+            update(SessionModel)
+            .where(
+                SessionModel.id == session_id,
+                SessionModel.deleted_at.is_(None),
+                SessionModel.status.in_(
+                    [status.value for status in expected_statuses]
+                ),
+            )
+            .values(
+                status=target_status.value,
+                updated_at=func.now(),
+            )
+            .returning(SessionModel)
+        )
+
+        result = await self.db_session.execute(stmt)
+        model = result.scalar_one_or_none()
+        return model.to_entity() if model else None
 
     @staticmethod
     def _active_stmt() -> Select[tuple[SessionModel]]:
         return select(SessionModel).where(SessionModel.deleted_at.is_(None))
 
-
-
     # SQLAlchemy 官方说明，ORM UPDATE ... RETURNING 可以直接返回更新后的 ORM 对象；
     # 在支持 RETURNING 的 PostgreSQL 上，默认 session 同步策略也会使用返回值同步对象状态
     async def _update_active(
-        self,
-        session_id: UUID,
-        **values: Unpack[_SessionUpdateValues],
+            self,
+            session_id: UUID,
+            **values: Unpack[_SessionUpdateValues],
     ) -> SessionModel | None:
         stmt = (
             update(SessionModel)
@@ -122,18 +137,15 @@ class SqlAlchemySessionRepository(SessionRepository):
         return result.scalar_one_or_none()
 
 
-
 # session message 相关的service
 class SqlAlchemySessionMessageRepository(SessionMessageRepository):
     def __init__(self, db_session: AsyncSession) -> None:
         self.db_session = db_session
 
-
-
     async def add_user_message(self, session_id: UUID, content: str) -> SessionMessage:
         model = SessionMessageModel(
-            session_id = session_id,
-            content = content,
+            session_id=session_id,
+            content=content,
             role=MessageRole.user.value
         )
 
@@ -146,11 +158,10 @@ class SqlAlchemySessionMessageRepository(SessionMessageRepository):
         stmt = (select(SessionMessageModel)
                 .where(SessionMessageModel.session_id == session_id)
                 .order_by(SessionMessageModel.created_at.asc())
-            )
+                )
 
         result = await self.db_session.execute(stmt)
         return [model.to_entity() for model in result.scalars()]
-
 
 
 # session evnet 相关的service
@@ -159,8 +170,7 @@ class SqlAlchemySessionEventRepository(SessionEventRepository):
     def __init__(self, db_session: AsyncSession) -> None:
         self.db_session = db_session
 
-
-    async def add(self,session_id: UUID,event_type: SessionEventType,payload: dict) -> SessionEvent:
+    async def add(self, session_id: UUID, event_type: SessionEventType, payload: dict) -> SessionEvent:
         model = SessionEventModel(
             session_id=session_id,
             type=event_type.value,
@@ -171,7 +181,6 @@ class SqlAlchemySessionEventRepository(SessionEventRepository):
         await self.db_session.refresh(model)
         return model.to_entity()
 
-
     async def list_by_session(self, session_id: UUID) -> list[SessionEvent]:
         stmt = (select(SessionEventModel)
                 .where(SessionEventModel.session_id == session_id)
@@ -180,4 +189,15 @@ class SqlAlchemySessionEventRepository(SessionEventRepository):
 
         result = await self.db_session.execute(stmt)
 
-        return  [model.to_entity() for model in result.scalars()]
+        return [model.to_entity() for model in result.scalars()]
+
+    async def get(self, session_id: UUID, event_id: UUID) -> SessionEvent | None:
+        stmt = (select(SessionEventModel).where(
+            SessionEventModel.session_id == session_id,
+            SessionEventModel.id == event_id,
+        ))
+
+        result = await self.db_session.execute(stmt)
+        model = result.scalar_one_or_none()
+
+        return model.to_entity() if model else None

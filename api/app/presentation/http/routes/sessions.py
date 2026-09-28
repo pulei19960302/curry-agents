@@ -1,4 +1,4 @@
-from asyncio import sleep
+from asyncio import CancelledError
 from http import HTTPStatus
 
 from fastapi import APIRouter, Depends, Response, UploadFile, File, Request
@@ -13,6 +13,7 @@ from app.application.planner_service import PlannerService
 from app.application.react_agent_service import ReActAgentService
 from app.application.session_service import SessionService
 from app.application.unit_of_work import UnitOfWork
+from app.core.exceptions import AppException
 from app.domain.files.entities import SessionFile
 from app.domain.sessions.entities import Session, SessionMessage, SessionEvent
 from app.infrastructure.database.session import get_db_session
@@ -199,40 +200,105 @@ async def list_events(
 
 # /{session_id}/message 的流式接口
 @router.post("/{session_id}/messages/stream", response_class=StreamingResponse)
-async def stream_create_message(
+async def stream_message(
         session_id: UUID,
         payload: MessageCreateRequest,
-        service: SessionService = Depends(build_session_service)
+        request: Request,
+        service: SessionService = Depends(build_session_service),
+        planner_service: PlannerService = Depends(build_planner_service),
+        react_service: ReActAgentService = Depends(build_react_agent_service),
 ) -> StreamingResponse:
-    # 变成运行状态
+    clean_content = payload.content.strip()
+
+    if not clean_content:
+        raise AppException(message="message content is required", code=400, status_code=400)
+
+    # 在开始响应前完成校验和原子抢占，
+    # 这样不存在返回404，并发执行返回409。
     running_session = await service.mark_running(session_id)
 
-    # 创建用户消息
-    message, event = await service.create_user_message(
-        session_id=session_id,
-        content=payload.content,
-    )
+    try:
+        message, message_event = await service.create_user_message(
+            session_id=session_id,
+            content=clean_content
+        )
+    except Exception:
+        await service.rollback()
+        await service.mark_failed_if_running(session_id)
+        raise
 
-    # 变成闲置状态
-    idle_session = await service.mark_idle(session_id)
-
-    # 模型转换
-    running_data = to_session_response(running_session).model_dump(mode="json")
-    message_data = to_message_response(message).model_dump(mode="json")
-    event_data = to_event_response(event).model_dump(mode="json")
-    idle_data = to_session_response(idle_session).model_dump(mode="json")
+    running_data = to_session_response(
+        running_session
+    ).model_dump(mode="json")
+    message_data = to_message_response(
+        message
+    ).model_dump(mode="json")
+    message_event_data = to_event_response(
+        message_event
+    ).model_dump(mode="json")
 
     async def event_stream():
-        yield encode_sse("session_status", running_data)
-        await sleep(0.2)
-        yield encode_sse("message_created", event_data)
-        await sleep(0.2)
-        yield encode_sse("session_status", idle_data)
-        await sleep(0.2)
+        plan_event_id: UUID | None = None
+        try:
+            yield encode_sse("session_status", running_data)
+            yield encode_sse(
+                message_event.type.value,
+                message_event_data,
+            )
+            if await request.is_disconnected():
+                await service.mark_stopped_if_running(session_id)
+                return
+
+            _plan, plan_event = await planner_service.create_plan(
+                session_id=session_id,
+                task=clean_content,
+            )
+            plan_event_id = plan_event.id
+            yield encode_sse(
+                plan_event.type.value,
+                to_event_response(plan_event).model_dump(mode="json"),
+            )
+            async for event in react_service.stream_latest_plan(
+                    session_id=session_id,
+                    plan_event_id=plan_event.id,
+            ):
+                if await request.is_disconnected():
+                    await service.mark_stopped_if_running(session_id)
+                    return
+
+                yield encode_sse(
+                    event.type.value,
+                    to_event_response(event).model_dump(mode="json"),
+                )
+        except CancelledError:
+            await service.rollback()
+            await service.mark_stopped_if_running(session_id)
+            raise
+
+        except Exception as error:
+            error_event = await react_service.record_task_error(
+                session_id=session_id,
+                plan_event_id=plan_event_id,
+                error=error,
+            )
+            yield encode_sse(
+                error_event.type.value,
+                to_event_response(error_event).model_dump(mode="json"),
+            )
+
+        final_session = await service.get_session(session_id)
+        final_status = final_session.status.value
+
+        yield encode_sse(
+            "session_status",
+            to_session_response(final_session).model_dump(mode="json"),
+        )
         yield encode_sse(
             "stream_done",
             {
                 "session_id": str(session_id),
+                "status": final_status,
+                "success": final_status == "idle",
                 "message": message_data,
             },
         )

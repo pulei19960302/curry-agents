@@ -1,7 +1,8 @@
 import { useEffect, useMemo } from "react";
-import useSessionStore from "@/stores/session-store";
 
-export default function useSessionWorkSpace() {
+import useSessionStore from "../stores/session-store";
+
+export default function useSessionWorkspace() {
   const store = useSessionStore();
 
   useEffect(() => {
@@ -14,12 +15,9 @@ export default function useSessionWorkSpace() {
     }
   }, [store.selectedSessionId]);
 
-
   const sessionItems = store.sessions.type === "ready" ? store.sessions.data : [];
-  
   const selectedSession = useMemo(
-    () =>
-      sessionItems.find((item) => item.id === store.selectedSessionId) ?? null,
+    () => sessionItems.find((item) => item.id === store.selectedSessionId) ?? null,
     [sessionItems, store.selectedSessionId],
   );
 

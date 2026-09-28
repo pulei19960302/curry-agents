@@ -1,19 +1,16 @@
 import { create } from "zustand";
 
+import { fetchFilePreview } from "@/lib/files-api";
 import {
-  cancelAgentTask,
   clearUnread,
-  createPlan,
   createSession,
   deleteSession,
-  fetchAgentTask,
   fetchEvents,
   fetchMessages,
   fetchSessionContext,
   fetchSessionFiles,
   fetchSessions,
   sendMessageToStream,
-  startPlanTask,
   stopSession,
   uploadSessionFile,
 } from "@/lib/session-api";
@@ -27,102 +24,163 @@ import type {
   SessionFileItem,
   SessionItem,
 } from "@/types/sessions";
-import { StreamEvent } from "@/types/base";
 import { FilePreviewData } from "@/types/files";
-import { fetchFilePreview } from "@/lib/files-api";
-import type { AgentPlan } from "@/types/planner";
+import { AgentPlan } from "@/types/planner";
+import { StreamEvent } from "@/types/base";
 
-//
-export type SessionState = {
+type SessionState = {
   actionError: string | null;
+  attachments: SessionFileItem[];
   draft: string;
   events: LoadState<SessionEventItem[]>;
-  messages: LoadState<ChatMessage[]>;
-  selectedSessionId: string | null;
-  sendingMessage: boolean;
-  sessions: LoadState<SessionItem[]>;
-  submitting: boolean;
-  title: string;
-  clearingUnread: boolean;
-  stoppingSession: boolean;
-  attachments: SessionFileItem[];
-  uploadingFile: boolean;
   files: LoadState<SessionFileItem[]>;
   filePreview: LoadState<FilePreviewData | null>;
-  selectedFile: SessionFileItem | null;
   latestPlan: AgentPlan | null;
-  planning: boolean;
-  executingPlan: boolean;
+  messages: LoadState<ChatMessage[]>;
+  selectedSessionId: string | null;
+  selectedFile: SessionFileItem | null;
+  clearingUnread: boolean;
   currentTask: AgentTaskItem | null;
   context: LoadState<SessionContextData | null>;
+  sendingMessage: boolean;
+  planning: boolean;
+  executingPlan: boolean;
+  sessions: LoadState<SessionItem[]>;
+  stoppingSession: boolean;
+  submitting: boolean;
+  title: string;
+  uploadingFile: boolean;
 };
 
 type SessionActions = {
   createSession: () => Promise<void>;
   deleteSession: (sessionId: string) => Promise<void>;
   loadSessionDetail: (sessionId: string) => Promise<void>;
+  loadSessionContext: (sessionId: string) => Promise<void>;
+  loadFilePreview: (fileId: string) => Promise<void>;
   refreshSessions: () => Promise<void>;
+  clearUnread: () => Promise<void>;
   selectSession: (sessionId: string | null) => void;
+  selectFile: (file: SessionFileItem | null) => void;
   sendMessage: () => Promise<void>;
+  stopSession: () => Promise<void>;
+  uploadAttachment: (file: File) => Promise<void>;
   setActionError: (message: string | null) => void;
   setDraft: (draft: string) => void;
   setTitle: (title: string) => void;
-  clearUnread: () => Promise<void>;
-  stopSession: () => Promise<void>;
-  uploadAttachment: (file: File) => Promise<void>;
-  loadFilePreview: (fileId: string) => Promise<void>;
-  selectFile: (file: SessionFileItem | null) => void;
-  createPlan: () => Promise<void>;
-  executePlan: () => Promise<void>;
-  cancelPlanTask: () => Promise<void>;
-  loadSessionContext: (sessionId: string) => Promise<void>;
 };
 
 const initialDetailState = {
   messages: { type: "ready", data: [] } as LoadState<ChatMessage[]>,
   events: { type: "ready", data: [] } as LoadState<SessionEventItem[]>,
   files: { type: "ready", data: [] } as LoadState<SessionFileItem[]>,
-  filePreview: {
-    type: "ready",
-    data: null,
-  } as LoadState<FilePreviewData | null>,
   context: { type: "ready", data: null } as LoadState<SessionContextData | null>,
+  filePreview: { type: "ready", data: null } as LoadState<FilePreviewData | null>,
 };
-
-function sleep(ms: number) {
-  return new Promise((resolve) => window.setTimeout(resolve, ms));
-}
-
-function isTerminalTaskStatus(status: AgentTaskItem["status"]) {
-  return ["succeeded", "failed", "cancelled"].includes(status);
-}
 
 function getErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : "unknown error";
 }
 
-function toSessionEventItem(event: StreamEvent): SessionEventItem | null {
-  if (event.event !== "message_created") {
-    return null;
+function sleep(ms: number) {
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, ms);
+  });
+}
+
+function getPresentationDelay(eventName: string) {
+  if (eventName === "message_created") {
+    return 120;
   }
-  const data = event.data as Partial<SessionEventItem>;
-  if (!data.id || !data.session_id || !data.type || !data.created_at) {
-    return null;
+  if (eventName === "plan_created") {
+    return 420;
   }
-  return {
-    id: String(data.id),
-    session_id: String(data.session_id),
-    type: String(data.type),
-    payload:
-      typeof data.payload === "object" && data.payload !== null
-        ? (data.payload as Record<string, unknown>)
-        : {},
-    created_at: String(data.created_at),
-  };
+  if (eventName === "step_started") {
+    return 520;
+  }
+  if (eventName === "tool_called") {
+    return 680;
+  }
+  if (eventName === "step_completed") {
+    return 420;
+  }
+  return 120;
 }
 
 function updateSession(items: SessionItem[], nextSession: SessionItem) {
   return items.map((item) => (item.id === nextSession.id ? nextSession : item));
+}
+
+function toSessionEventItem(event: StreamEvent): SessionEventItem | null {
+  if (event.event === "session_status") {
+    const data = event.data as Partial<SessionItem>;
+    if (!data.id || !data.status || !data.updated_at) {
+      return null;
+    }
+    return {
+      id: `${data.id}-${data.status}-${Date.now()}`,
+      session_id: String(data.id),
+      type: `session_status:${data.status}`,
+      payload: {
+        status: data.status,
+      },
+      created_at: String(data.updated_at),
+    };
+  }
+
+  if (
+    [
+      "message_created",
+      "plan_created",
+      "step_started",
+      "tool_called",
+      "step_completed",
+      "task_done",
+      "task_error",
+    ].includes(event.event)
+  ) {
+    const data = event.data as Partial<SessionEventItem>;
+    if (!data.id || !data.session_id || !data.type || !data.created_at) {
+      return null;
+    }
+    return {
+      id: String(data.id),
+      session_id: String(data.session_id),
+      type: String(data.type),
+      payload:
+        typeof data.payload === "object" && data.payload !== null
+          ? (data.payload as Record<string, unknown>)
+          : {},
+      created_at: String(data.created_at),
+    };
+  }
+
+  return null;
+}
+
+function toSessionItem(event: StreamEvent): SessionItem | null {
+  if (event.event !== "session_status") {
+    return null;
+  }
+  const data = event.data as Partial<SessionItem>;
+  if (
+    !data.id ||
+    !data.title ||
+    !data.status ||
+    !data.created_at ||
+    !data.updated_at ||
+    data.unread_count === undefined
+  ) {
+    return null;
+  }
+  return {
+    id: String(data.id),
+    title: String(data.title),
+    status: String(data.status),
+    unread_count: Number(data.unread_count),
+    created_at: String(data.created_at),
+    updated_at: String(data.updated_at),
+  };
 }
 
 function toPlan(event: SessionEventItem): AgentPlan | null {
@@ -161,73 +219,81 @@ function applyExecutionEvents(plan: AgentPlan | null, events: SessionEventItem[]
   if (!plan) {
     return null;
   }
-
-  const startedStepIds = new Set<string>();
-  const completedStepIds = new Set<string>();
+  const nextSteps = plan.steps.map((step) => ({ ...step }));
 
   for (const event of events) {
     const payload = event.payload as Record<string, unknown>;
-    const planId = typeof payload.plan_id === "string" ? payload.plan_id : null;
-    if (planId && planId !== plan.id) {
-      continue;
-    }
     const stepId = typeof payload.step_id === "string" ? payload.step_id : null;
     if (!stepId) {
+      if (event.type === "task_error") {
+        const runningStep = nextSteps.find((item) => item.status === "running");
+        if (runningStep) {
+          runningStep.status = "failed";
+        }
+      }
       continue;
     }
-
+    const step = nextSteps.find((item) => item.id === stepId);
+    if (!step) {
+      continue;
+    }
     if (event.type === "step_started") {
-      startedStepIds.add(stepId);
+      step.status = "running";
     }
     if (event.type === "step_completed") {
-      completedStepIds.add(stepId);
+      step.status = "completed";
+    }
+    if (event.type === "task_error") {
+      step.status = "failed";
     }
   }
 
   return {
     ...plan,
-    steps: plan.steps.map((step) => ({
-      ...step,
-      status: completedStepIds.has(step.id)
-        ? "completed"
-        : startedStepIds.has(step.id)
-          ? "running"
-          : "pending",
-    })),
+    steps: nextSteps,
   };
 }
 
 const useSessionStore = create<SessionState & SessionActions>((set, get) => ({
   actionError: null,
-  draft: "",
-  events: initialDetailState.events,
-  messages: initialDetailState.messages,
-  selectedSessionId: null,
-  sendingMessage: false,
-  sessions: { type: "loading" },
-  submitting: false,
-  title: "",
-  clearingUnread: false,
-  stoppingSession: false,
   attachments: [],
-  uploadingFile: false,
-  files: initialDetailState.files,
-  filePreview: initialDetailState.filePreview,
-  selectedFile: null,
-  latestPlan: null,
-  planning: false,
-  executingPlan: false,
+  clearingUnread: false,
   currentTask: null,
   context: initialDetailState.context,
+  draft: "",
+  events: initialDetailState.events,
+  files: initialDetailState.files,
+  filePreview: initialDetailState.filePreview,
+  latestPlan: null,
+  messages: initialDetailState.messages,
+  selectedSessionId: null,
+  selectedFile: null,
+  sendingMessage: false,
+  planning: false,
+  executingPlan: false,
+  sessions: { type: "loading" },
+  stoppingSession: false,
+  submitting: false,
+  title: "",
+  uploadingFile: false,
 
-  setActionError: (message: string | null) => set({ actionError: message }),
-
+  setActionError: (message) => set({ actionError: message }),
   setDraft: (draft) => set({ draft }),
-
   setTitle: (title) => set({ title }),
+
+  selectFile: (file) => {
+    set({
+      filePreview: { type: "ready", data: null },
+      selectedFile: file,
+    });
+  },
 
   selectSession: (sessionId) => {
     set({
+      attachments: [],
+      latestPlan: null,
+      currentTask: null,
+      selectedFile: null,
       selectedSessionId: sessionId,
       ...initialDetailState,
     });
@@ -235,7 +301,6 @@ const useSessionStore = create<SessionState & SessionActions>((set, get) => ({
 
   refreshSessions: async () => {
     set({ actionError: null });
-
     try {
       const items = await fetchSessions();
       set((state) => {
@@ -243,28 +308,28 @@ const useSessionStore = create<SessionState & SessionActions>((set, get) => ({
           state.selectedSessionId && items.some((item) => item.id === state.selectedSessionId)
             ? state.selectedSessionId
             : (items[0]?.id ?? null);
+
         return {
           sessions: { type: "ready", data: items },
           selectedSessionId,
         };
       });
     } catch (error) {
-      const errorMessage = getErrorMessage(error);
       set({
-        actionError: errorMessage,
-        sessions: { type: "error", message: errorMessage },
+        actionError: getErrorMessage(error),
+        sessions: { type: "error", message: getErrorMessage(error) },
       });
     }
   },
 
   loadSessionDetail: async (sessionId) => {
     set({
+      context: { type: "loading" },
       events: { type: "loading" },
       files: { type: "loading" },
       filePreview: { type: "ready", data: null },
       messages: { type: "loading" },
       selectedFile: null,
-      context: { type: "loading" },
     });
     try {
       const [messages, events, files, context] = await Promise.all([
@@ -274,20 +339,48 @@ const useSessionStore = create<SessionState & SessionActions>((set, get) => ({
         fetchSessionContext(sessionId),
       ]);
       set({
+        context: { type: "ready", data: context },
         events: { type: "ready", data: events },
         files: { type: "ready", data: files },
         latestPlan: applyExecutionEvents(getLatestPlan(events), events),
         messages: { type: "ready", data: messages },
-        context: { type: "ready", data: context },
       });
     } catch (error) {
       const message = getErrorMessage(error);
       set({
         actionError: message,
+        context: { type: "error", message },
         events: { type: "error", message },
         files: { type: "error", message },
         messages: { type: "error", message },
+      });
+    }
+  },
+
+  loadSessionContext: async (sessionId) => {
+    set({ actionError: null, context: { type: "loading" } });
+    try {
+      const context = await fetchSessionContext(sessionId);
+      set({ context: { type: "ready", data: context } });
+    } catch (error) {
+      const message = getErrorMessage(error);
+      set({
+        actionError: message,
         context: { type: "error", message },
+      });
+    }
+  },
+
+  loadFilePreview: async (fileId) => {
+    set({ actionError: null, filePreview: { type: "loading" } });
+    try {
+      const preview = await fetchFilePreview(fileId);
+      set({ filePreview: { type: "ready", data: preview } });
+    } catch (error) {
+      const message = getErrorMessage(error);
+      set({
+        actionError: message,
+        filePreview: { type: "error", message },
       });
     }
   },
@@ -314,51 +407,13 @@ const useSessionStore = create<SessionState & SessionActions>((set, get) => ({
     }
   },
 
-  deleteSession: async (sessionId: string) => {
+  deleteSession: async (sessionId) => {
     set({ actionError: null });
     try {
       await deleteSession(sessionId);
       await get().refreshSessions();
     } catch (error) {
       set({ actionError: getErrorMessage(error) });
-    }
-  },
-
-  sendMessage: async () => {
-    const sessionId = get().selectedSessionId;
-    const content = get().draft.trim();
-    if (!sessionId) {
-      set({ actionError: "请先选择一个会话" });
-      return;
-    }
-    if (!content) {
-      set({ actionError: "请输入消息内容" });
-      return;
-    }
-
-    set({ actionError: null, sendingMessage: true });
-    try {
-      await sendMessageToStream(sessionId, content, (event) => {
-        const sessionEvent = toSessionEventItem(event);
-        if (!sessionEvent) {
-          return;
-        }
-        set((state) => {
-          const currentEvents = state.events.type === "ready" ? state.events.data : [];
-          return {
-            events: {
-              type: "ready",
-              data: [...currentEvents, sessionEvent],
-            },
-          };
-        });
-      });
-      set({ draft: "" });
-      await Promise.all([get().loadSessionDetail(sessionId), get().refreshSessions()]);
-    } catch (error) {
-      set({ actionError: getErrorMessage(error) });
-    } finally {
-      set({ sendingMessage: false });
     }
   },
 
@@ -387,6 +442,7 @@ const useSessionStore = create<SessionState & SessionActions>((set, get) => ({
       set({ stoppingSession: false });
     }
   },
+
   clearUnread: async () => {
     const sessionId = get().selectedSessionId;
     if (!sessionId) {
@@ -413,7 +469,84 @@ const useSessionStore = create<SessionState & SessionActions>((set, get) => ({
     }
   },
 
-  uploadAttachment: async (file: File) => {
+  sendMessage: async () => {
+    const sessionId = get().selectedSessionId;
+    const content = get().draft.trim();
+    if (!sessionId) {
+      set({ actionError: "请先选择一个会话" });
+      return;
+    }
+    if (!content) {
+      set({ actionError: "请输入消息内容" });
+      return;
+    }
+
+    set({
+      actionError: null,
+      currentTask: null,
+      executingPlan: false,
+      latestPlan: null,
+      planning: true,
+      sendingMessage: true,
+    });
+    try {
+      set({ draft: "" });
+      // ===================== 第1步：通过统一 SSE 发送任务并接收执行过程 =====================
+      // 后端会依次推送 message_created、plan_created、step/tool/task 事件。
+      await sendMessageToStream(sessionId, content, async (event) => {
+        await sleep(getPresentationDelay(event.event));
+        const session = toSessionItem(event);
+        if (session) {
+          set((state) => ({
+            sessions:
+              state.sessions.type === "ready"
+                ? {
+                    type: "ready",
+                    data: updateSession(state.sessions.data, session),
+                  }
+                : state.sessions,
+          }));
+        }
+
+        const sessionEvent = toSessionEventItem(event);
+        if (!sessionEvent) {
+          return;
+        }
+        set((state) => {
+          const currentEvents = state.events.type === "ready" ? state.events.data : [];
+          const events = [...currentEvents, sessionEvent];
+          const latestPlan = applyExecutionEvents(getLatestPlan(events), events);
+          return {
+            events: {
+              type: "ready",
+              data: events,
+            },
+            executingPlan:
+              sessionEvent.type === "task_done" || sessionEvent.type === "task_error"
+                ? false
+                : state.executingPlan || sessionEvent.type === "plan_created",
+            latestPlan,
+            planning: sessionEvent.type === "plan_created" ? false : state.planning,
+          };
+        });
+      });
+      await Promise.all([
+        get().loadSessionDetail(sessionId),
+        get().refreshSessions(),
+        get().loadSessionContext(sessionId),
+      ]);
+    } catch (error) {
+      set({ actionError: getErrorMessage(error) });
+    } finally {
+      set({
+        executingPlan: false,
+        planning: false,
+        sendingMessage: false,
+      });
+    }
+  },
+
+  uploadAttachment: async (file) => {
     if (!get().selectedSessionId) {
       set({ actionError: "请先选择一个会话" });
       return;
@@ -432,141 +565,11 @@ const useSessionStore = create<SessionState & SessionActions>((set, get) => ({
               }
             : state.files,
       }));
+      await get().loadSessionContext(get().selectedSessionId!);
     } catch (error) {
       set({ actionError: getErrorMessage(error) });
     } finally {
       set({ uploadingFile: false });
-    }
-  },
-
-  selectFile: (file) => {
-    set({
-      filePreview: { type: "ready", data: null },
-      selectedFile: file,
-    });
-  },
-
-  loadFilePreview: async (fileId) => {
-    set({ actionError: null, filePreview: { type: "loading" } });
-    try {
-      const preview = await fetchFilePreview(fileId);
-      set({ filePreview: { type: "ready", data: preview } });
-    } catch (error) {
-      const message = getErrorMessage(error);
-      set({
-        actionError: message,
-        filePreview: { type: "error", message },
-      });
-    }
-  },
-  createPlan: async () => {
-    const sessionId = get().selectedSessionId;
-    if (!sessionId) {
-      set({ actionError: "请先选择一个会话" });
-      return;
-    }
-
-    const messageState = get().messages;
-    const currentMessages = messageState.type === "ready" ? messageState.data : [];
-    const latestUserMessage = [...currentMessages]
-      .reverse()
-      .find((message) => message.role === "user");
-    const task = get().draft.trim() || latestUserMessage?.content.trim() || "";
-    if (!task) {
-      set({ actionError: "请输入任务，或先发送一条用户消息" });
-      return;
-    }
-
-    set({ actionError: null, planning: true });
-    try {
-      const result = await createPlan(sessionId, task);
-      set((state) => {
-        const currentEvents = state.events.type === "ready" ? state.events.data : [];
-        const events = [...currentEvents, result.event];
-        return {
-          events: { type: "ready", data: events },
-          latestPlan: result.plan,
-        };
-      });
-      await get().refreshSessions();
-    } catch (error) {
-      set({ actionError: getErrorMessage(error) });
-    } finally {
-      set({ planning: false });
-    }
-  },
-  executePlan: async () => {
-    const sessionId = get().selectedSessionId;
-    if (!sessionId) {
-      set({ actionError: "请先选择一个会话" });
-      return;
-    }
-    if (!get().latestPlan) {
-      set({ actionError: "请先生成计划" });
-      return;
-    }
-
-    set({ actionError: null, currentTask: null, executingPlan: true });
-    try {
-      // ===================== 第1步：只把任务放入 Redis Stream，不等待执行结束 =====================
-      const queuedTask = await startPlanTask(sessionId);
-      set({ currentTask: queuedTask });
-
-      // ===================== 第2步：轮询任务状态，同时刷新事件面板 =====================
-      let latestTask = queuedTask;
-      while (!isTerminalTaskStatus(latestTask.status)) {
-        await sleep(1000);
-        latestTask = await fetchAgentTask(queuedTask.id);
-        const events = await fetchEvents(sessionId);
-        set({
-          currentTask: latestTask,
-          events: { type: "ready", data: events },
-          latestPlan: applyExecutionEvents(getLatestPlan(events), events),
-        });
-      }
-
-      // ===================== 第3步：任务结束后用数据库状态做最终刷新 =====================
-      if (latestTask.status === "failed") {
-        set({ actionError: latestTask.error ?? "任务执行失败" });
-      }
-      if (latestTask.status === "cancelled") {
-        set({ actionError: "任务已取消" });
-      }
-      await get().loadSessionDetail(sessionId);
-      await get().refreshSessions();
-    } catch (error) {
-      set({ actionError: getErrorMessage(error) });
-    } finally {
-      set({ executingPlan: false });
-    }
-  },
-
-  cancelPlanTask: async () => {
-    const task = get().currentTask;
-    if (!task) {
-      set({ actionError: "当前没有可取消的任务" });
-      return;
-    }
-
-    set({ actionError: null });
-    try {
-      const cancelled = await cancelAgentTask(task.id);
-      set({ currentTask: cancelled });
-    } catch (error) {
-      set({ actionError: getErrorMessage(error) });
-    }
-  },
-  loadSessionContext: async (sessionId) => {
-    set({ actionError: null, context: { type: "loading" } });
-    try {
-      const context = await fetchSessionContext(sessionId);
-      set({ context: { type: "ready", data: context } });
-    } catch (error) {
-      const message = getErrorMessage(error);
-      set({
-        actionError: message,
-        context: { type: "error", message },
-      });
     }
   },
 }));

@@ -1,3 +1,4 @@
+import { useMemo, useState } from "react";
 import {
   Bot,
   Camera,
@@ -6,57 +7,25 @@ import {
   GitBranch,
   Globe,
   Hammer,
+  Maximize2,
+  Monitor,
   Network,
   Plug,
   RefreshCcw,
   Search,
   Terminal,
+  X,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
 
-import A2aPanel from "./a2a-panel";
-import SandboxStatusPanel from "./sandbox-status-panel";
-import McpPanel from "./mcp_panel";
-import MultiAgentPanel from "./multi-agent-panel";
-import SessionFilePanel from "./session-file-panel";
-import VncPanel from "./vnc-panel";
 import { formatDateTime } from "@/lib/format";
+import type { LoadState, SessionEventItem } from "@/types/sessions";
 import { parseString } from "@/utils";
 
-import type { LoadState, SessionEventItem, SessionFileItem } from "@/types/sessions";
-
-import type { A2aAgentCardData, A2aConceptsData, A2aRemoteAgentListData } from "@/types/a2a";
-import type { FilePreviewData } from "@/types/files";
-import type { McpServerListData, McpToolListData } from "@/types/mcp";
-import type { MultiAgentRoleListData } from "@/types/mutil-agent";
-import type { SandboxInstanceData } from "@/types/sandbox";
-import type { VncStatusData } from "@/types/vnc";
-
 type ToolPreviewPanelProps = {
-  a2aAgentCard: LoadState<A2aAgentCardData>;
-  a2aAgents: LoadState<A2aRemoteAgentListData>;
-  a2aConcepts: LoadState<A2aConceptsData>;
   events: LoadState<SessionEventItem[]>; // 会话事件列表，用来提取最近工具调用。
-  files: LoadState<SessionFileItem[]>; // 会话文件列表，文件工具和附件都会沉淀到这里。
-  onPreviewFile: (fileId: string) => void;
-  onRefreshA2a: () => void;
-  onRefreshMcp: () => void;
-  onRefreshSandbox: () => void;
-  onRefreshVnc: () => void;
-  onSelectFile: (file: SessionFileItem) => void;
-  preview: LoadState<FilePreviewData | null>;
-  mcpServers: LoadState<McpServerListData>; // MCP Server 配置状态。
-  mcpTools: LoadState<McpToolListData>; // MCP 工具发现结果。
-  multiAgentRoles: LoadState<MultiAgentRoleListData>; // 多 Agent 协作角色说明。
-  onRefreshMultiAgent: () => void;
-  sandbox: LoadState<SandboxInstanceData>; // 当前任务沙箱状态。
-  sandboxRefreshing: boolean;
-  selectedFile: SessionFileItem | null;
+  onClose: () => void; // 关闭右侧工具预览抽屉。
   selectedToolEventId: string | null; // 中间对话流里选中的工具调用事件。
-  vnc: LoadState<VncStatusData>; // VNC 连接信息，用于浏览器实时观察。
 };
-
-type PreviewTab = "tools" | "files" | "environment";
 
 type ScreenshotPayload = {
   kind: "browser_screenshot";
@@ -125,132 +94,64 @@ type MultiAgentResultPayload = {
 
 // ===================== 第1步：统一展示工具调用、文件和沙箱观察 =====================
 export default function ToolPreviewPanel({
-  a2aAgentCard,
-  a2aAgents,
-  a2aConcepts,
   events,
-  files,
-  onPreviewFile,
-  onRefreshA2a,
-  onRefreshMcp,
-  onRefreshSandbox,
-  onRefreshVnc,
-  onSelectFile,
-  preview,
-  mcpServers,
-  mcpTools,
-  multiAgentRoles,
-  onRefreshMultiAgent,
-  sandbox,
-  sandboxRefreshing,
-  selectedFile,
+  onClose,
   selectedToolEventId,
-  vnc,
 }: ToolPreviewPanelProps) {
-  const [activeTab, setActiveTab] = useState<PreviewTab>("tools");
+  const [expandedEvent, setExpandedEvent] = useState<SessionEventItem | null>(null);
   const toolEvents = useMemo(() => getToolEvents(events), [events]);
   const selectedToolEvent = toolEvents.find((event) => event.id === selectedToolEventId) ?? null;
   const latestToolEvent = selectedToolEvent ?? toolEvents[0] ?? null;
 
-  useEffect(() => {
-    if (selectedToolEventId) {
-      setActiveTab("tools");
-    }
-  }, [selectedToolEventId]);
-
   return (
-    <section className="rounded-md border border-slate-200 bg-white p-5">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <h2 className="flex items-center gap-2 text-base font-semibold text-slate-950">
-            <Hammer size={17} aria-hidden="true" />
-            工具预览
-          </h2>
-          <p className="mt-1 text-sm leading-5 text-slate-500">
-            观察 Agent 调用工具、读写文件和操作浏览器的过程
-          </p>
+    <section className="flex h-full flex-col overflow-hidden border border-white/10 bg-[#08090d] shadow-2xl shadow-black/60">
+      <div className="border-b border-white/10 bg-black/60 p-5">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h2 className="flex items-center gap-2 text-base font-semibold text-zinc-50">
+              <Monitor size={17} aria-hidden="true" />
+              CurryAgent 的电脑
+            </h2>
+            <p className="mt-1 text-sm leading-5 text-zinc-500">
+              查看当前工具调用的参数、输出和可视化结果
+            </p>
+          </div>
+          <button
+            className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-white/[0.04] text-zinc-400 hover:bg-white/10 hover:text-zinc-50"
+            onClick={onClose}
+            title="关闭工具预览"
+            type="button"
+          >
+            <X size={17} aria-hidden="true" />
+          </button>
         </div>
       </div>
 
-      <div className="mt-4 grid grid-cols-3 rounded-md border border-slate-200 bg-slate-50 p-1 text-sm">
-        <TabButton active={activeTab === "tools"} onClick={() => setActiveTab("tools")}>
-          工具
-        </TabButton>
-        <TabButton active={activeTab === "files"} onClick={() => setActiveTab("files")}>
-          文件
-        </TabButton>
-        <TabButton active={activeTab === "environment"} onClick={() => setActiveTab("environment")}>
-          环境
-        </TabButton>
+      <div className="flex-1 overflow-auto bg-[#08090d] p-4">
+        <ToolCallView
+          events={events}
+          latestToolEvent={latestToolEvent}
+          onExpand={setExpandedEvent}
+          toolEvents={toolEvents}
+        />
       </div>
 
-      <div className="mt-4">
-        {activeTab === "tools" ? (
-          <ToolCallView events={events} latestToolEvent={latestToolEvent} toolEvents={toolEvents} />
-        ) : null}
-
-        {activeTab === "files" ? (
-          <SessionFilePanel
-            files={files}
-            onPreview={onPreviewFile}
-            onSelectFile={onSelectFile}
-            preview={preview}
-            selectedFile={selectedFile}
-          />
-        ) : null}
-
-        {activeTab === "environment" ? (
-          <div className="grid gap-4">
-            <SandboxStatusPanel
-              onRefresh={onRefreshSandbox}
-              refreshing={sandboxRefreshing}
-              state={sandbox}
-            />
-            <McpPanel onRefresh={onRefreshMcp} servers={mcpServers} tools={mcpTools} />
-            <A2aPanel
-              agentCard={a2aAgentCard}
-              agents={a2aAgents}
-              concepts={a2aConcepts}
-              onRefresh={onRefreshA2a}
-            />
-            <MultiAgentPanel onRefresh={onRefreshMultiAgent} roles={multiAgentRoles} />
-            <VncPanel onRefresh={onRefreshVnc} state={vnc} />
-          </div>
-        ) : null}
-      </div>
+      {expandedEvent ? (
+        <ToolResultDialog event={expandedEvent} onClose={() => setExpandedEvent(null)} />
+      ) : null}
     </section>
-  );
-}
-
-function TabButton({
-  active,
-  children,
-  onClick,
-}: {
-  active: boolean;
-  children: string;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      className={`rounded px-3 py-2 font-medium transition ${
-        active ? "bg-white text-slate-950 shadow-sm" : "text-slate-500 hover:text-slate-900"
-      }`}
-      onClick={onClick}
-      type="button"
-    >
-      {children}
-    </button>
   );
 }
 
 function ToolCallView({
   events,
   latestToolEvent,
+  onExpand,
   toolEvents,
 }: {
   events: LoadState<SessionEventItem[]>;
   latestToolEvent: SessionEventItem | null;
+  onExpand: (event: SessionEventItem) => void;
   toolEvents: SessionEventItem[];
 }) {
   if (events.type === "loading") {
@@ -262,17 +163,17 @@ function ToolCallView({
   }
 
   if (!latestToolEvent) {
-    return <EmptyState icon={Bot} text="执行计划后，工具调用会显示在这里。" />;
+    return <EmptyState icon={Bot} text="发送任务后，工具调用会显示在这里。" />;
   }
 
   return (
     <div className="grid gap-4">
-      <ToolCallDetail event={latestToolEvent} />
+      <ToolCallDetail event={latestToolEvent} onExpand={onExpand} />
       <div>
-        <h3 className="text-sm font-semibold text-slate-900">最近工具调用</h3>
+        <h3 className="text-sm font-semibold text-zinc-200">最近工具调用</h3>
         <div className="mt-2 grid gap-2">
           {toolEvents.slice(0, 5).map((event) => (
-            <ToolCallSummary event={event} key={event.id} />
+            <ToolCallSummary event={event} key={event.id} onExpand={onExpand} />
           ))}
         </div>
       </div>
@@ -280,7 +181,13 @@ function ToolCallView({
   );
 }
 
-function ToolCallDetail({ event }: { event: SessionEventItem }) {
+function ToolCallDetail({
+  event,
+  onExpand,
+}: {
+  event: SessionEventItem;
+  onExpand: (event: SessionEventItem) => void;
+}) {
   // 1. 从 tool_called 事件中取出工具名和输出。
   //    后端所有工具结果都会先进入 session_events，再由这个面板统一展示。
   const toolName = parseString(event.payload.tool_name);
@@ -305,41 +212,118 @@ function ToolCallDetail({ event }: { event: SessionEventItem }) {
   );
 
   return (
-    <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
+    <div className="overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04] shadow-sm">
       <div className="flex items-start gap-2">
-        <Icon className="mt-0.5 shrink-0 text-slate-500" size={17} aria-hidden="true" />
         <div className="min-w-0 flex-1">
-          <div className="flex items-center justify-between gap-3">
-            <h3 className="truncate text-sm font-semibold text-slate-950">
+          <div className="flex items-center justify-between gap-3 border-b border-white/10 px-4 py-3">
+            <h3 className="flex min-w-0 items-center gap-2 truncate text-sm font-semibold text-zinc-50">
+              <Icon className="shrink-0 text-blue-400" size={17} aria-hidden="true" />
               {toolName || "tool_called"}
             </h3>
-            <span className="shrink-0 text-xs text-slate-500">
-              {formatDateTime(event.created_at)}
-            </span>
+            <div className="flex shrink-0 items-center gap-2">
+              <button
+                className="inline-flex h-7 items-center gap-1 rounded-xl border border-white/10 bg-white/[0.04] px-2 text-xs font-medium text-zinc-400 hover:text-zinc-50"
+                onClick={() => onExpand(event)}
+                title="展开工具详情"
+                type="button"
+              >
+                <Maximize2 size={14} aria-hidden="true" />
+                展开详情
+              </button>
+              <span className="text-xs text-zinc-600">{formatDateTime(event.created_at)}</span>
+            </div>
           </div>
-          <ToolArguments value={event.payload.arguments} />
-          {screenshot ? (
-            <ScreenshotPreview screenshot={screenshot} />
-          ) : searchResults ? (
-            <SearchResultsPreview results={searchResults} />
-          ) : mcpResult ? (
-            <McpResultPreview result={mcpResult} />
-          ) : a2aResult ? (
-            <A2aResultPreview result={a2aResult} />
-          ) : multiAgentResult ? (
-            <MultiAgentResultPreview result={multiAgentResult} />
-          ) : (
-            <pre className="mt-3 max-h-56 overflow-auto rounded-md bg-white p-3 text-xs leading-5 whitespace-pre-wrap text-slate-700">
-              {output || "<no output>"}
-            </pre>
-          )}
+          <div className="p-4">
+            {screenshot ? (
+              <ScreenshotPreview screenshot={screenshot} />
+            ) : searchResults ? (
+              <SearchResultsPreview results={searchResults} />
+            ) : mcpResult ? (
+              <McpResultPreview result={mcpResult} />
+            ) : a2aResult ? (
+              <A2aResultPreview result={a2aResult} />
+            ) : multiAgentResult ? (
+              <MultiAgentResultPreview result={multiAgentResult} />
+            ) : (
+              <pre className="max-h-72 overflow-auto rounded-xl bg-slate-950 p-4 text-xs leading-5 whitespace-pre-wrap text-slate-100">
+                {output || "<no output>"}
+              </pre>
+            )}
+            <ToolArguments value={event.payload.arguments} />
+          </div>
         </div>
       </div>
     </div>
   );
 }
 
-function ToolCallSummary({ event }: { event: SessionEventItem }) {
+function ToolResultDialog({ event, onClose }: { event: SessionEventItem; onClose: () => void }) {
+  const toolName = parseString(event.payload.tool_name);
+  const output = parseString(event.payload.output);
+  const screenshot = parseScreenshot(output);
+  const searchResults = parseSearchResults(output);
+  const mcpResult = parseMcpToolResult(output);
+  const a2aResult = parseA2aTaskResult(output);
+  const multiAgentResult = parseMultiAgentResult(output);
+
+  return (
+    <div className="fixed inset-0 z-50 bg-slate-950/55 p-6 max-sm:p-3">
+      <div className="mx-auto flex h-full max-w-5xl flex-col overflow-hidden rounded-md bg-white shadow-xl">
+        <div className="flex items-center justify-between gap-3 border-b border-slate-200 px-5 py-4">
+          <div className="min-w-0">
+            <h2 className="truncate text-base font-semibold text-slate-950">
+              {toolName || "工具详情"}
+            </h2>
+            <p className="mt-1 text-xs text-slate-500">{formatDateTime(event.created_at)}</p>
+          </div>
+          <button
+            className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-slate-200 text-slate-600 hover:bg-slate-50"
+            onClick={onClose}
+            title="关闭"
+            type="button"
+          >
+            <X size={17} aria-hidden="true" />
+          </button>
+        </div>
+
+        <div className="grid flex-1 grid-cols-[320px_1fr] overflow-hidden max-lg:grid-cols-1">
+          <aside className="overflow-auto border-r border-slate-200 bg-slate-50 p-4 max-lg:border-r-0 max-lg:border-b">
+            <ToolArguments value={event.payload.arguments} />
+          </aside>
+          <main className="overflow-auto p-5">
+            {screenshot ? (
+              <img
+                alt="浏览器截图大图"
+                className="mx-auto max-h-full w-full object-contain"
+                src={`data:${screenshot.mime_type};base64,${screenshot.base64_data}`}
+              />
+            ) : searchResults ? (
+              <SearchResultsPreview results={searchResults} />
+            ) : mcpResult ? (
+              <McpResultPreview result={mcpResult} />
+            ) : a2aResult ? (
+              <A2aResultPreview result={a2aResult} />
+            ) : multiAgentResult ? (
+              <MultiAgentResultPreview result={multiAgentResult} />
+            ) : (
+              <pre className="min-h-full rounded-md bg-slate-50 p-4 text-xs leading-5 break-words whitespace-pre-wrap text-slate-700">
+                {output || "<no output>"}
+              </pre>
+            )}
+          </main>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ToolCallSummary({
+  event,
+  onExpand,
+}: {
+  event: SessionEventItem;
+  onExpand: (event: SessionEventItem) => void;
+}) {
   const toolName = parseString(event.payload.tool_name);
   const output = parseString(event.payload.output);
   const screenshot = parseScreenshot(output);
@@ -357,13 +341,21 @@ function ToolCallSummary({ event }: { event: SessionEventItem }) {
   );
 
   return (
-    <div className="flex items-center justify-between gap-3 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm">
+    <button
+      className="flex items-center justify-between gap-3 rounded-md border border-slate-200 bg-white px-3 py-2 text-left text-sm hover:border-slate-300 hover:bg-slate-50"
+      onClick={() => onExpand(event)}
+      title="展开这次工具调用"
+      type="button"
+    >
       <div className="flex min-w-0 items-center gap-2">
         <Icon className="shrink-0 text-slate-500" size={15} aria-hidden="true" />
         <span className="truncate font-medium text-slate-800">{toolName || "tool"}</span>
       </div>
-      <span className="shrink-0 text-xs text-slate-500">{formatDateTime(event.created_at)}</span>
-    </div>
+      <span className="inline-flex shrink-0 items-center gap-1 text-xs text-slate-500">
+        <Maximize2 size={12} aria-hidden="true" />
+        {formatDateTime(event.created_at)}
+      </span>
+    </button>
   );
 }
 

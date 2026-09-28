@@ -6,9 +6,7 @@ import { useEffect, useState } from "react";
 import AppSidebar from "./components/app-sidebar";
 import ChatWorkspace from "./components/chat-workspace";
 import SettingsWorkspace from "./components/settings-workspace";
-import SessionPanel from "./components/session-panel";
 import StatusBadge from "./components/status-badge";
-import StatusPanel from "./components/status-panel";
 import useSessionWorkspace from "./hooks/use-session-workspace";
 import { fetchA2aAgentCard, fetchA2aAgents, fetchA2aConcepts } from "./lib/a2a-api";
 import { requestApi } from "./lib/api";
@@ -153,7 +151,7 @@ export default function Home() {
   }
 
   function refreshContext() {
-    // 上下文工程面板只和当前会话相关，没有选中会话时不发请求。
+    // 上下文数据只和当前会话相关，没有选中会话时不发请求。
     if (workspace.selectedSessionId) {
       workspace.loadSessionContext(workspace.selectedSessionId);
     }
@@ -298,8 +296,8 @@ export default function Home() {
   const dbBadge = getBadge(databaseStatus, "数据库正常", "数据库异常");
 
   return (
-    <main className="min-h-screen bg-[#f6f7f9] text-slate-950">
-      <div className="grid min-h-screen grid-cols-[320px_1fr] max-lg:grid-cols-1">
+    <main className="min-h-screen bg-[#050506] text-zinc-50">
+      <div className="grid min-h-screen grid-cols-[300px_1fr] max-lg:grid-cols-1">
         <AppSidebar
           actionError={workspace.actionError}
           activeView={activeView}
@@ -315,18 +313,18 @@ export default function Home() {
           title={workspace.title}
         />
 
-        <section className="flex min-w-0 flex-col">
-          <header className="flex min-h-16 items-center justify-between border-b border-slate-200 bg-white px-6 max-sm:flex-col max-sm:items-start max-sm:gap-3 max-sm:px-4 max-sm:py-4">
+        <section className="agent-grid-bg flex min-w-0 flex-col">
+          <header className="flex min-h-20 items-center justify-between border-b border-white/10 bg-black/55 px-8 backdrop-blur max-sm:flex-col max-sm:items-start max-sm:gap-3 max-sm:px-4 max-sm:py-4">
             <div>
-              <h1 className="text-xl font-semibold tracking-normal text-slate-950">
+              <h1 className="text-2xl font-semibold tracking-normal text-zinc-50">
                 {activeView === "settings"
                   ? "设置"
-                  : (workspace.selectedSession?.title ?? "工作台")}
+                  : (workspace.selectedSession?.title ?? "新任务")}
               </h1>
-              <p className="mt-1 text-sm text-slate-500">
+              <p className="mt-2 text-sm text-zinc-500">
                 {activeView === "settings"
                   ? "集中管理模型、工具、远程 Agent 和多 Agent 配置"
-                  : "创建会话后，可以发送第一条任务消息"}
+                  : "输入任务后，CurryAgent 会自动规划、执行并展示过程"}
               </p>
             </div>
             <div className="flex gap-2 max-sm:flex-wrap">
@@ -335,59 +333,32 @@ export default function Home() {
             </div>
           </header>
 
-          <div className="grid gap-5 p-6 max-sm:p-4">
+          <div className="min-h-0 flex-1">
             {activeView === "workspace" ? (
-              <>
-                <section className="grid grid-cols-[1fr_1fr] gap-5 max-xl:grid-cols-1">
-                  <StatusPanel apiStatus={apiStatus} databaseStatus={databaseStatus} />
-                  <SessionPanel selectedSession={workspace.selectedSession} />
-                </section>
-
-                <ChatWorkspace
-                  a2aAgentCard={a2aAgentCard}
-                  a2aAgents={a2aAgents}
-                  a2aConcepts={a2aConcepts}
-                  attachments={workspace.attachments}
-                  clearingUnread={workspace.clearingUnread}
-                  context={workspace.context}
-                  draft={workspace.draft}
-                  events={workspace.events}
-                  files={workspace.files}
-                  filePreview={workspace.filePreview}
-                  messages={workspace.messages}
-                  onClearUnread={workspace.clearUnread}
-                  onCancelPlanTask={workspace.cancelPlanTask}
-                  onCreatePlan={workspace.createPlan}
-                  onDraftChange={workspace.setDraft}
-                  onExecutePlan={workspace.executePlan}
-                  onPreviewFile={workspace.loadFilePreview}
-                  onRefreshA2a={refreshA2a}
-                  onRefreshContext={refreshContext}
-                  onRefreshMcp={refreshMcp}
-                  onRefreshMultiAgent={refreshMultiAgent}
-                  onRefreshSandbox={refreshSandbox}
-                  onRefreshVnc={refreshVnc}
-                  onSend={workspace.sendMessage}
-                  onSelectFile={workspace.selectFile}
-                  onStop={workspace.stopSession}
-                  onUploadFile={workspace.uploadAttachment}
-                  executingPlan={workspace.executingPlan}
-                  plan={workspace.latestPlan}
-                  planning={workspace.planning}
-                  task={workspace.currentTask}
-                  mcpServers={mcpServers}
-                  mcpTools={mcpTools}
-                  multiAgentRoles={multiAgentRoles}
-                  sandbox={sandboxStatus}
-                  sandboxRefreshing={sandboxRefreshing}
-                  vnc={vncStatus}
-                  selectedFile={workspace.selectedFile}
-                  selectedSession={workspace.selectedSession}
-                  sending={workspace.sendingMessage}
-                  stopping={workspace.stoppingSession}
-                  uploadingFile={workspace.uploadingFile}
-                />
-              </>
+              <ChatWorkspace
+                attachments={workspace.attachments}
+                clearingUnread={workspace.clearingUnread}
+                draft={workspace.draft}
+                events={workspace.events}
+                filePreview={workspace.filePreview}
+                messages={workspace.messages}
+                onClearUnread={workspace.clearUnread}
+                onDraftChange={workspace.setDraft}
+                onPreviewFile={workspace.loadFilePreview}
+                onSend={workspace.sendMessage}
+                onSelectFile={workspace.selectFile}
+                onStop={workspace.stopSession}
+                onUploadFile={workspace.uploadAttachment}
+                executingPlan={workspace.executingPlan}
+                plan={workspace.latestPlan}
+                planning={workspace.planning}
+                task={workspace.currentTask}
+                selectedFile={workspace.selectedFile}
+                selectedSession={workspace.selectedSession}
+                sending={workspace.sendingMessage}
+                stopping={workspace.stoppingSession}
+                uploadingFile={workspace.uploadingFile}
+              />
             ) : (
               <SettingsWorkspace
                 onCreateIntegration={addSettingsIntegration}

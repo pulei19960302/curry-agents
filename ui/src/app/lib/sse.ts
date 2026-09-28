@@ -26,7 +26,7 @@ function parseSseBlock(block: string): StreamEvent | null {
 
 export async function readSseStream(
   response: Response,
-  onEvent: (event: StreamEvent) => void,
+  onEvent: (event: StreamEvent) => void | Promise<void>,
 ) {
   if (!response.body) {
     throw new Error("empty stream response");
@@ -49,7 +49,7 @@ export async function readSseStream(
     for (const block of blocks) {
       const event = parseSseBlock(block.trim());
       if (event) {
-        onEvent(event);
+        await onEvent(event);
       }
     }
   }
@@ -57,6 +57,6 @@ export async function readSseStream(
   buffer += decoder.decode();
   const event = parseSseBlock(buffer.trim());
   if (event) {
-    onEvent(event);
+    await onEvent(event);
   }
 }

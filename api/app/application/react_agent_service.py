@@ -1,4 +1,7 @@
+from asyncio import CancelledError, to_thread, sleep
+
 import re
+from collections.abc import AsyncIterator
 from urllib.parse import urlparse
 from uuid import UUID
 
@@ -205,12 +208,233 @@ class ReActAgentService:
 
         return [started_event, tool_called_event, completed_event]
 
+    # 以流式方式执行当前会话的最新计划
+    async def stream_latest_plan(self, session_id: UUID, plan_event_id: UUID) -> AsyncIterator[SessionEvent]:
+        """
+            边执行计划边产出事件。
+            这个方法把 step_started、tool_called、step_completed、task_done
+            逐个 yield 给 HTTP SSE 层，让中间对话流可以实时更新。
+        """
+
+        plan_event = await self.uow.session_event.get(
+            session_id=session_id,
+            event_id=plan_event_id
+        )
+
+        if plan_event is None or plan_event.type is not SessionEventType.plan_created:
+            raise AppException(
+                message="plan not found or plan type is not plan_created",
+                code=404,
+                status_code=404,
+            )
+        # 这里保证了一定是plan_created
+        plan = plan_event.payload
+        steps = plan.get("steps", [])
+
+        if not steps:
+            raise AppException(
+                message="plan has no steps",
+                code=400,
+                status_code=400,
+            )
+
+        current_step: dict | None = None
+        current_index = 0
+
+        try:
+            for index, step in enumerate(steps, start=1):
+                current_step = step
+                current_index = index
+
+                # 判断当前会话状态, 每一次运行步骤的时候要判断当前会话状态，如果状态不对，就停止步骤执行
+                if await self._is_stopped(session_id):
+                    yield await self._record_stopped(
+                        session_id=session_id,
+                        plan=plan,
+                        current_step=current_step,
+                        current_index=current_index,
+                    )
+                    return
+
+                started_event = await self.uow.session_event.add(
+                    session_id=session_id,
+                    event_type=SessionEventType.step_started,
+                    payload={
+                        "plan_id": plan.get("id") or plan.get("plan_id"),
+                        "step_id": step.get("id"),
+                        "index": index,
+                        "title": step.get("title", ""),
+                    }
+                )
+                await self.uow.sessions.touch(session_id)
+                await self.uow.commit()
+                yield started_event
+
+                # 执行工具
+                tool_result = await to_thread(
+                    self._call_tool_for_step,
+                    plan,
+                    step,
+                    index,
+                )
+
+                tool_call_event = await self.uow.session_event.add(
+                    session_id=session_id,
+                    event_type=SessionEventType.tool_called,
+                    payload={
+                        "plan_id": plan.get("id") or plan.get("plan_id"),
+                        "step_id": step.get("id"),
+                        "tool_name": tool_result["tool_name"],
+                        "arguments": tool_result["arguments"],
+                        "output": tool_result["output"],
+                    },
+                )
+                await self.uow.commit()
+                await sleep(0.2)
+                yield tool_call_event
+
+                # 判断session 状态是不是停止
+                if await self._is_stopped(session_id):
+                    yield await self._record_stopped(
+                        session_id,
+                        plan,
+                        current_step,
+                        current_index,
+                    )
+                    return
+
+                completed_event = await self.uow.session_event.add(
+                    session_id=session_id,
+                    event_type=SessionEventType.step_completed,
+                    payload={
+                        "plan_id": plan.get("id") or plan.get("plan_id"),
+                        "step_id": step.get("id"),
+                        "index": index,
+                        "title": step.get("title", ""),
+                        "summary": tool_result["output"],
+                    },
+                )
+                await self.uow.sessions.touch(session_id)
+                await self.uow.commit()
+                yield completed_event
+
+            done_event = await self.uow.session_event.add(
+                session_id=session_id,
+                event_type=SessionEventType.task_done,
+                payload={
+                    "plan_id": plan.get("id") or plan.get("plan_id"),
+                    "message": "计划步骤已全部执行完成。",
+                },
+            )
+            await self.uow.sessions.transition_status(
+                session_id=session_id,
+                expected_statuses=(SessionStatus.running,),
+                target_status=SessionStatus.idle,
+            )
+            await self.uow.sessions.touch(session_id)
+            await self.uow.commit()
+            yield done_event
+
+        except CancelledError:
+            await self.uow.rollback()
+            await self.uow.sessions.transition_status(
+                session_id=session_id,
+                expected_statuses=(SessionStatus.running,),
+                target_status=SessionStatus.stopped,
+            )
+            await self.uow.commit()
+            raise
+
+        except Exception as error:
+            yield await self.record_task_error(
+                session_id=session_id,
+                plan_event_id=plan_event_id,
+                error=error,
+                current_step=current_step,
+                current_index=current_index,
+            )
+
+    # 一些辅助方法
+    async def _is_stopped(self, session_id: UUID) -> bool:
+        session = await self.uow.sessions.get(session_id)
+        if session is None:
+            raise AppException(
+                message="session not found",
+                code=404,
+                status_code=404
+            )
+        return session.status is SessionStatus.stopped
+
+    async def _record_stopped(
+            self,
+            session_id: UUID,
+            plan: dict,
+            current_step: dict | None,
+            current_index: int
+    ) -> SessionEvent:
+        payload = {
+            "plan_id": plan.get("id") or plan.get("plan_id"),
+            "message": "任务已停止。",
+        }
+        if current_step is not None:
+            payload.update({
+                "step_id": current_step.get("id"),
+                "index": current_index,
+                "title": current_step.get("title", ""),
+            })
+
+        event = await self.uow.session_event.add(
+            session_id=session_id,
+            event_type=SessionEventType.task_stopped,
+            payload=payload,
+        )
+        await self.uow.commit()
+        return event
+
+    # 记录任务失败
+    async def record_task_error(
+            self,
+            session_id: UUID,
+            plan_event_id: UUID | None,
+            error: Exception,
+            current_step: dict | None = None,
+            current_index: int = 0,
+    ) -> SessionEvent:
+        await self.uow.rollback()
+
+        payload: dict = {
+            "plan_event_id": str(plan_event_id) if plan_event_id else None,
+            "message": str(error) or "任务执行失败",
+        }
+        if current_step is not None:
+            payload.update({
+                "step_id": current_step.get("id"),
+                "index": current_index,
+                "title": current_step.get("title", ""),
+            })
+
+        event = await self.uow.session_event.add(
+            session_id=session_id,
+            event_type=SessionEventType.task_error,
+            payload=payload,
+        )
+        # 把会话的状态也变成失败
+        await self.uow.sessions.transition_status(
+            session_id=session_id,
+            expected_statuses=(SessionStatus.running,),
+            target_status=SessionStatus.failed,
+        )
+        await self.uow.commit()
+        return event
+
     @staticmethod
     def _find_latest_plan_event(events: list[SessionEvent]) -> SessionEvent:
         """从事件流末尾倒序找出最新一条 ``plan_created`` 事件。
 
         事件仓储使用 created_at 正序查询，因而反向遍历遇到的第一个计划就是
         最近创建的计划。会话重新规划后，这能确保执行新计划而非旧计划。
+
+        最新： 流式处理 暂时不用这个方法
         """
 
         for event in reversed(events):

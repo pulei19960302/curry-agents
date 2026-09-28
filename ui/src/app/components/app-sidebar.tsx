@@ -33,14 +33,14 @@ export default function AppSidebar({
   onTitleChange,
 }: AppSidebarProps) {
   return (
-    <aside className="border-r border-slate-200 bg-white px-4 py-5 max-lg:border-r-0 max-lg:border-b">
+    <aside className="overflow-auto border-r border-white/10 bg-black px-4 py-5 max-lg:border-r-0 max-lg:border-b">
       <div className="flex items-center gap-3 px-2">
-        <div className="flex h-10 w-10 items-center justify-center rounded-md bg-slate-950 text-white">
+        <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-blue-500/30 bg-blue-500/15 text-blue-400">
           <Bot size={22} aria-hidden="true" />
         </div>
         <div>
-          <div className="text-base leading-5 font-semibold">CurryAgent</div>
-          <div className="mt-1 text-xs text-slate-500">Agent Workspace</div>
+          <div className="text-base leading-5 font-semibold text-zinc-50">CurryAgent</div>
+          <div className="mt-1 text-xs text-zinc-500">Agent Workspace</div>
         </div>
       </div>
 
@@ -60,18 +60,18 @@ export default function AppSidebar({
       </nav>
 
       <form
-        className="mt-6 grid gap-2"
+        className="mt-6 rounded-2xl border border-white/10 bg-white/[0.04] p-3"
         onSubmit={(event) => {
           event.preventDefault();
           onCreateSession();
         }}
       >
-        <label className="text-xs font-medium text-slate-500" htmlFor="title">
-          新建会话
+        <label className="text-xs font-medium text-zinc-500" htmlFor="title">
+          新建任务
         </label>
         <div className="flex gap-2">
           <input
-            className="h-10 min-w-0 flex-1 rounded-md border border-slate-200 px-3 text-sm transition outline-none focus:border-slate-400"
+            className="h-10 min-w-0 flex-1 rounded-xl border border-white/10 bg-black/50 px-3 text-sm text-zinc-100 transition outline-none placeholder:text-zinc-600 focus:border-blue-500/60"
             id="title"
             maxLength={200}
             onChange={(event) => onTitleChange(event.target.value)}
@@ -79,7 +79,7 @@ export default function AppSidebar({
             value={title}
           />
           <button
-            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-slate-950 text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-300"
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-500 text-white transition hover:bg-blue-400 disabled:cursor-not-allowed disabled:bg-zinc-800 disabled:text-zinc-500"
             disabled={submitting}
             title="创建会话"
             type="submit"
@@ -90,12 +90,12 @@ export default function AppSidebar({
       </form>
 
       <div className="mt-6 flex items-center justify-between">
-        <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
+        <div className="flex items-center gap-2 text-sm font-semibold text-zinc-200">
           <MessageSquare size={17} aria-hidden="true" />
-          <span>会话列表</span>
+          <span>任务列表</span>
         </div>
         <button
-          className="flex h-8 w-8 items-center justify-center rounded-md text-slate-500 transition hover:bg-slate-100 hover:text-slate-950"
+          className="flex h-8 w-8 items-center justify-center rounded-md text-zinc-500 transition hover:bg-white/10 hover:text-zinc-50"
           onClick={onRefresh}
           title="刷新"
           type="button"
@@ -112,7 +112,7 @@ export default function AppSidebar({
       />
 
       {actionError ? (
-        <div className="mt-4 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
+        <div className="mt-4 rounded-md border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-sm text-rose-200">
           {actionError}
         </div>
       ) : null}
@@ -135,8 +135,8 @@ function SidebarNavButton({
     <button
       className={`flex h-10 items-center gap-2 rounded-md px-3 text-sm font-medium transition ${
         active
-          ? "bg-slate-950 text-white"
-          : "text-slate-600 hover:bg-slate-100 hover:text-slate-950"
+          ? "bg-blue-500 text-white shadow-lg shadow-blue-500/20"
+          : "text-zinc-500 hover:bg-white/10 hover:text-zinc-100"
       }`}
       onClick={onClick}
       type="button"

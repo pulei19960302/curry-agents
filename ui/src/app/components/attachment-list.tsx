@@ -2,16 +2,17 @@ import { Download } from "lucide-react";
 
 import { formatBytes, formatDateTime } from "@/lib/format";
 import { getDownloadUrl } from "@/lib/files-api";
-import type { UploadedFile } from "@/types/files";
+import { SessionFileItem } from "@/types/sessions";
 
 type AttachmentListProps = {
-  files: UploadedFile[];
+  files: SessionFileItem[];
+  onSelectFile?: (file: SessionFileItem) => void;
 };
 
-export default function AttachmentList({ files }: AttachmentListProps) {
+export default function AttachmentList({ files, onSelectFile }: AttachmentListProps) {
   if (files.length === 0) {
     return (
-      <p className="rounded-md bg-slate-100 px-3 py-2 text-sm text-slate-500">
+      <p className="rounded-2xl border border-white/10 bg-white/[0.03] px-3 py-2 text-sm text-zinc-600">
         还没有上传附件
       </p>
     );
@@ -20,21 +21,30 @@ export default function AttachmentList({ files }: AttachmentListProps) {
   return (
     <div className="space-y-2">
       {files.map((file) => (
-        <a
-          className="flex items-center justify-between gap-3 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm transition hover:border-slate-300"
-          href={getDownloadUrl(file)}
+        <div
+          className="flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-2 text-sm transition hover:border-blue-500/40"
           key={file.id}
         >
-          <span className="min-w-0">
-            <span className="block truncate font-medium text-slate-800">
-              {file.original_name}
+          <button
+            className="min-w-0 flex-1 text-left"
+            onClick={() => onSelectFile?.(file)}
+            type="button"
+          >
+            <span className="block truncate font-medium text-zinc-200">
+              {file.file.original_name}
             </span>
-            <span className="mt-1 block text-xs text-slate-500">
-              {formatBytes(file.size)} · {formatDateTime(file.created_at)}
+            <span className="mt-1 block text-xs text-zinc-600">
+              {formatBytes(file.file.size)} · {formatDateTime(file.created_at)}
             </span>
-          </span>
-          <Download className="shrink-0 text-slate-500" size={16} aria-hidden="true" />
-        </a>
+          </button>
+          <a
+            className="shrink-0 rounded-md p-1 text-zinc-500 hover:bg-white/10 hover:text-zinc-100"
+            href={getDownloadUrl(file.file)}
+            title="下载文件"
+          >
+            <Download size={16} aria-hidden="true" />
+          </a>
+        </div>
       ))}
     </div>
   );

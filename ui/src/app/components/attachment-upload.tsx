@@ -6,20 +6,14 @@ type AttachmentUploadProps = {
   uploading: boolean;
 };
 
-export default function AttachmentUpload({
-  disabled,
-  onUpload,
-  uploading,
-}: AttachmentUploadProps) {
+export default function AttachmentUpload({ disabled, onUpload, uploading }: AttachmentUploadProps) {
   return (
-    <label className="flex cursor-pointer items-center justify-between gap-3 rounded-md border border-dashed border-slate-300 bg-white px-4 py-3 text-sm text-slate-600 transition hover:border-slate-400 disabled:cursor-not-allowed">
+    <label className="flex cursor-pointer items-center justify-between gap-3 rounded-2xl border border-dashed border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-zinc-500 transition hover:border-blue-500/40 hover:text-zinc-200 disabled:cursor-not-allowed">
       <span className="flex min-w-0 items-center gap-2">
         <Paperclip size={16} aria-hidden="true" />
-        <span className="truncate">
-          {uploading ? "附件上传中" : "选择附件上传"}
-        </span>
+        <span className="truncate">{uploading ? "附件上传中" : "选择附件上传"}</span>
       </span>
-      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-slate-950 text-white">
+      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-blue-500 text-white">
         <Upload size={15} aria-hidden="true" />
       </span>
       <input
