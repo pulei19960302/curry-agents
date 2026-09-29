@@ -1,13 +1,11 @@
 from datetime import datetime
-from uuid import UUID, uuid4
-
-from anyio import EventStatistics
 from sqlalchemy import DateTime, ForeignKey, Index, String, func
 from sqlalchemy.dialects.postgresql import UUID as PgUUID, JSONB
 from sqlalchemy.orm import Mapped, mapped_column
+from uuid import UUID, uuid4
 
-from app.infrastructure.database.base import Base
 from app.domain.sessions.entities import SessionEvent, SessionEventType
+from app.infrastructure.database.base import Base
 
 
 # 会话事件 ORM 模型。
@@ -49,4 +47,3 @@ class SessionEventModel(Base):
             payload=self.payload,
             created_at=self.created_at,
         )
-

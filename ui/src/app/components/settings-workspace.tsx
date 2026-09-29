@@ -8,6 +8,7 @@ import type {
   SettingsIntegrationKind,
   SettingsModule,
 } from "@/types/setting";
+import MemorySettingsPanel from "@/components/memory-settings-panel";
 
 type SettingsWorkspaceProps = {
   onCreateIntegration: (payload: {
@@ -101,6 +102,8 @@ function SettingsReadyView({
           <SettingsModuleCard key={module.key} module={module} onToggleModule={onToggleModule} />
         ))}
       </section>
+
+      <MemorySettingsPanel />
 
       <section className="grid grid-cols-[1fr_360px] gap-5 max-xl:grid-cols-1">
         <IntegrationList
