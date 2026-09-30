@@ -72,7 +72,6 @@ class MemoryService:
         return memory
 
     # 更新长期记忆
-
     async def update_memory(
             self,
             memory_id: UUID,
@@ -127,7 +126,6 @@ class MemoryService:
         return memory
 
     # 从会话中抽取长期记忆候选
-
     async def extract_candidates(self, session_id: UUID) -> list[MemoryCandidate]:
         """
             基于规则从会话消息和事件中抽取记忆候选。

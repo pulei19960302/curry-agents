@@ -1,6 +1,7 @@
 import json
 from uuid import UUID
 
+from app.application.context_engineering_service import ContextEngineeringService
 from app.application.llm_service import LLMService
 from app.application.unit_of_work import UnitOfWork
 from app.core.exceptions import AppException
@@ -39,11 +40,30 @@ class PlannerService:
                 status_code=404,
             )
 
-        plan = await self._generate_plan(clean_task)
+        # 构建统一上下文快照。长期记忆检索会结合任务、会话标题和最近消息。
+        context_snapshot = await ContextEngineeringService(self.uow).build_snapshot(
+            session_id=session_id,
+            task=clean_task,
+        )
+
+        agent_context = ContextEngineeringService.render_for_agent(context_snapshot)
+
+        plan = await self._generate_plan(
+            clean_task=clean_task,
+            agent_context=agent_context,
+        )
+
         event = await self.uow.session_event.add(
             session_id=session_id,
             event_type=SessionEventType.plan_created,
-            payload=self._plan_to_payload(plan),
+            payload=self._plan_to_payload(
+                plan,
+                memory_ids=[
+                    str(item.id)
+                    for item in context_snapshot.memory_context.items
+                ],
+            ),
+
         )
         await self.uow.sessions.touch(session_id)
         await self.uow.commit()
@@ -51,7 +71,7 @@ class PlannerService:
 
     # 使用 LLM 生成结构化计划；不可用时返回教学 fallback
 
-    async def _generate_plan(self, clean_task: str) -> AgentPlan:
+    async def _generate_plan(self, *, clean_task: str, agent_context: str) -> AgentPlan:
         try:
             result = await self.llm_service.chat(
                 messages=[
@@ -62,7 +82,9 @@ class PlannerService:
                             "只返回 JSON，不要返回 Markdown。JSON 格式为："
                             '{"title":"计划标题","goal":"目标","steps":['
                             '{"title":"步骤标题","description":"步骤说明","expected_output":"预期输出"}'
-                            "]}"
+                            "]}\n\n"
+                            "生成计划时必须遵守下面的压缩上下文；不要把上下文原样复制到计划：\n"
+                            f"{agent_context or '暂无额外上下文'}"
                         ),
                     ),
                     LLMMessage(role="user", content=clean_task),
@@ -151,7 +173,12 @@ class PlannerService:
             source="fallback",
         )
 
-    def _plan_to_payload(self, plan: AgentPlan) -> dict:
+    def _plan_to_payload(
+            self,
+            plan: AgentPlan,
+            *,
+            memory_ids: list[str],
+    ) -> dict:
         """把计划对象转换成可以存入 JSONB 的字典。"""
 
         return {
@@ -160,6 +187,9 @@ class PlannerService:
             "title": plan.title,
             "goal": plan.goal,
             "source": plan.source,
+            # 记录本次规划实际注入了哪些长期记忆，便于事件回放和排查。
+            "memory_ids": memory_ids,
+            "memory_count": len(memory_ids),
             "steps": [
                 {
                     "id": str(step.id),

@@ -5,8 +5,10 @@ from collections.abc import AsyncIterator
 from urllib.parse import urlparse
 from uuid import UUID
 
+from app.application.context_engineering_service import ContextEngineeringService
 from app.application.unit_of_work import UnitOfWork
 from app.core.exceptions import AppException
+from app.domain.context_engineering.entities import MemoryContext
 from app.domain.sessions.entities import SessionEvent, SessionEventType, SessionStatus
 from app.infrastructure.agent_tools.builtin import build_builtin_tool_registry
 
@@ -91,6 +93,13 @@ class ReActAgentService:
         # 一旦开始执行步骤，会话状态进入 running。
         await self.uow.sessions.update_status(session_id, SessionStatus.running)
 
+        context_snapshot = await ContextEngineeringService(self.uow).build_snapshot(
+            session_id=session_id,
+            task=str(plan.get("goal", "")),
+        )
+
+        memory_context = context_snapshot.memory_context
+
         try:
             # 严格串行执行，index 从 1 开始，便于事件和前端直接显示步骤序号。
             for index, step in enumerate(steps, start=1):
@@ -99,7 +108,8 @@ class ReActAgentService:
                         session_id=session_id,
                         step=step,
                         index=index,
-                        plan=plan
+                        plan=plan,
+                        memory_context=memory_context
                     )
                 )
             # 仅全部步骤没有异常时，才写入整个任务完成事件。
@@ -109,6 +119,8 @@ class ReActAgentService:
                 payload={
                     "plan_id": plan.get("id") or plan.get("plan_id"),
                     "message": "计划步骤已全部执行完成。",
+                    "memory_ids": [str(item.id) for item in memory_context.items],
+                    "memory_count": len(memory_context.items),
                 },
             )
             created_events.append(done_event)
@@ -143,7 +155,8 @@ class ReActAgentService:
             session_id: UUID,
             plan: dict,
             step: dict,
-            index: int
+            index: int,
+            memory_context: MemoryContext
     ) -> list[SessionEvent]:
         """执行一个步骤，并生成“开始、工具调用、完成”三个事件。
 
@@ -178,7 +191,7 @@ class ReActAgentService:
         )
 
         # 选择并执行工具。当前工具接口同步返回，因此这里没有 await。
-        tool_result = self._call_tool_for_step(plan, step, index)
+        tool_result = self._call_tool_for_step(plan, step, index, memory_context)
 
         # 保存工具名、工具参数和输出，便于前端展示与后续问题排查。
         tool_called_event = await self.uow.session_event.add(
@@ -190,6 +203,8 @@ class ReActAgentService:
                 "tool_name": tool_result["tool_name"],
                 "arguments": tool_result["arguments"],
                 "output": tool_result["output"],
+                "memory_ids": [str(item.id) for item in memory_context.items],
+                "memory_count": len(memory_context.items),
             },
         )
 
@@ -238,6 +253,15 @@ class ReActAgentService:
                 status_code=400,
             )
 
+        #  Planner 和 ReAct 复用同一套上下文构建方式。
+
+        context_snapshot = await ContextEngineeringService(self.uow).build_snapshot(
+            session_id=session_id,
+            task=str(plan.get("goal", "")),
+        )
+
+        memory_context = context_snapshot.memory_context
+
         current_step: dict | None = None
         current_index = 0
 
@@ -276,6 +300,7 @@ class ReActAgentService:
                     plan,
                     step,
                     index,
+                    memory_context,
                 )
 
                 tool_call_event = await self.uow.session_event.add(
@@ -287,6 +312,8 @@ class ReActAgentService:
                         "tool_name": tool_result["tool_name"],
                         "arguments": tool_result["arguments"],
                         "output": tool_result["output"],
+                        "memory_ids": [str(item.id) for item in memory_context.items],
+                        "memory_count": len(memory_context.items),
                     },
                 )
                 await self.uow.commit()
@@ -324,6 +351,8 @@ class ReActAgentService:
                 payload={
                     "plan_id": plan.get("id") or plan.get("plan_id"),
                     "message": "计划步骤已全部执行完成。",
+                    "memory_ids": [str(item.id) for item in memory_context.items],
+                    "memory_count": len(memory_context.items),
                 },
             )
             await self.uow.sessions.transition_status(
@@ -447,7 +476,7 @@ class ReActAgentService:
             status_code=404,
         )
 
-    def _call_tool_for_step(self, plan: dict, step: dict, index: int) -> dict:
+    def _call_tool_for_step(self, plan: dict, step: dict, index: int, memory_context: MemoryContext) -> dict:
         """根据计划内容选择工具，并返回可写入事件的调用结果。
 
         当前选择器是确定性的关键词规则，而不是模型在运行时再次推理：
@@ -474,15 +503,24 @@ class ReActAgentService:
         step_text = f"{title} {description} {expected_output}".strip()
         text = f"{goal} {step_text}".strip()
 
+        # 记忆
+        memory_guidance = self._render_memory_guidance(memory_context)
+
+        text_with_memory = (
+            f"{text}\n\n需要遵守的长期记忆：\n{memory_guidance}"
+            if memory_guidance
+            else text
+        )
+
         if self._needs_multi_agent(text):
             tool = self.registry.get("multi_agent_collaborate")
-            arguments = {"task": self._extract_multi_agent_task(text)}
+            arguments = {"task": self._extract_multi_agent_task(text_with_memory)}
 
         elif self._needs_a2a_agent(text):
             tool = self.registry.get("a2a_call")
             arguments = {
                 "agent_key": "demo_researcher",
-                "message": text
+                "message": self._extract_a2a_message(text_with_memory)
             }
 
 
@@ -515,13 +553,13 @@ class ReActAgentService:
             arguments = {"url": self._extract_url(text)}
         elif "拆" in title or "步骤" in title or "计划" in title:
             tool = self.registry.get("draft_plan")
-            arguments = {"task": text}
+            arguments = {"task": text_with_memory}
         elif "关键" in title or "重点" in title:
             tool = self.registry.get("extract_keywords")
-            arguments = {"text": text}
+            arguments = {"text": text_with_memory}
         else:
             tool = self.registry.get("summarize_text")
-            arguments = {"text": text}
+            arguments = {"text": text_with_memory}
 
         # AgentTool.call 负责最小参数校验、调用 handler，并统一包装返回结果。
         result = tool.call(arguments)
@@ -552,6 +590,28 @@ class ReActAgentService:
             "汇总",
         ]
         return any(keyword in text for keyword in keywords)
+
+    @staticmethod
+    def _render_memory_guidance(memory_context: MemoryContext) -> str:
+        """把已检索记忆压缩成工具可读的指导文本。
+
+        工具类型仍由当前任务文本决定，避免旧记忆中的“浏览器、搜索”等词
+        误触发工具；选中工具后，文本类工具会收到这些长期约束和偏好。
+        """
+
+        return "\n".join(
+            f"- [{item.kind.value}] {item.content}"
+            for item in memory_context.items
+        )
+
+    @staticmethod
+    def _extract_a2a_message(text: str) -> str:
+        """从计划文本中提取给远程 Agent 的任务消息。"""
+
+        clean_text = " ".join(text.split())
+        for keyword in ["A2A", "a2a", "远程 Agent", "远程agent", "远程智能体"]:
+            clean_text = clean_text.replace(keyword, " ")
+        return " ".join(clean_text.split())[:400] or text[:400]
 
     @staticmethod
     def _extract_multi_agent_task(text: str) -> str:

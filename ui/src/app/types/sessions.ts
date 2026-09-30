@@ -107,6 +107,11 @@ export type ContextBudget = {
   included_events: number;
   omitted_events: number;
   total_message_chars: number;
+  memory_limit: number;
+  max_memory_chars: number;
+  included_memories: number; // 本次真正注入 Agent 的长期记忆数。
+  omitted_memories: number; // 因相关度或预算没有注入的候选数。
+  total_memory_chars: number; // 长期记忆区域实际使用的字符数。
 };
 
 export type SessionContextData = {
@@ -116,4 +121,28 @@ export type SessionContextData = {
   event_summaries: ContextEventSummary[];
   files: ContextFileReference[];
   budget: ContextBudget;
+  memory_context: MemoryContext;
+};
+
+export type MemoryContextItem = {
+  id: string;
+  kind: string;
+  content: string;
+  importance: number;
+  relevance_score: number;
+  matched_terms: string[];
+  original_chars: number;
+  truncated: boolean;
+  source_session_id: string | null;
+  source_event_id: string | null;
+  updated_at: string | null;
+};
+
+export type MemoryContext = {
+  query: string;
+  items: MemoryContextItem[];
+  candidate_count: number;
+  omitted_count: number;
+  total_chars: number;
+  max_chars: number;
 };

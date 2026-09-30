@@ -1,5 +1,5 @@
 from datetime import datetime, UTC
-from sqlalchemy import select
+from sqlalchemy import select, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 from uuid import UUID
 
@@ -78,6 +78,34 @@ class SqlAlchemyAgentMemoryRepository(AgentMemoryRepository):
             AgentMemoryModel.importance.desc(),
             AgentMemoryModel.updated_at.desc(),
         ).limit(limit)
+
+        result = await self.db_session.execute(stmt)
+
+        return [model.to_entity() for model in result.scalars()]
+
+    async def list_retrievable(
+            self,
+            *,
+            now: datetime,
+            limit: int
+    ) -> list[AgentMemory]:
+        stmt = (
+            select(AgentMemoryModel)
+            .where(
+                AgentMemoryModel.enabled.is_(True),
+                AgentMemoryModel.deleted_at.is_(None),
+                # or_ 只要一个成立就学
+                or_(
+                    AgentMemoryModel.expires_at.is_(None),
+                    AgentMemoryModel.expires_at > now,
+                )
+            )
+            .order_by(
+                AgentMemoryModel.importance.desc(),
+                AgentMemoryModel.updated_at.desc(),
+            )
+            .limit(limit)
+        )
 
         result = await self.db_session.execute(stmt)
 

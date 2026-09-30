@@ -33,6 +33,14 @@ class AgentMemoryRepository(Protocol):
             limit: int = 100,
     ) -> list[AgentMemory]: ...
 
+    # 返回启用、未删除并且尚未过期的检索候选
+    async def list_retrievable(
+            self,
+            *,
+            now: datetime,
+            limit: int
+    ) -> list[AgentMemory]: ...
+
     async def update(
             self,
             memory_id: UUID,

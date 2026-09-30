@@ -92,6 +92,13 @@ class Settings(BaseSettings):
     # agent 配置路径
     a2a_config_path: str = "config/a2a.yaml"
 
+    # Context Memory：长期记忆检索和注入预算
+    context_memory_candidate_limit: int = 100  # 先从数据库最多取多少条候选记忆
+    context_memory_limit: int = 6  # 最终最多注入多少条记忆。
+    context_memory_max_chars: int = 2400  # 长期记忆区域总字符预算。
+    context_memory_item_max_chars: int = 500  # 单条记忆最多保留多少字符。
+    context_memory_min_score: float = 0.12  # 低于这个分数的记忆不会注入上下文。
+
 
 @lru_cache
 def get_settings() -> Settings:

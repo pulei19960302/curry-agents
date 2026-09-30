@@ -1,7 +1,6 @@
 from datetime import datetime
-from uuid import UUID
-
 from pydantic import Field, BaseModel
+from uuid import UUID
 
 from app.schemas.common import ResponseSchema
 
@@ -132,6 +131,29 @@ class ContextBudgetResponse(ResponseSchema):
     total_message_chars: int
 
 
+class MemoryContextItemResponse(ResponseSchema):
+    id: UUID
+    kind: str
+    content: str
+    importance: int
+    relevance_score: float
+    matched_terms: list[str]
+    original_chars: int
+    truncated: bool
+    source_session_id: UUID | None
+    source_event_id: UUID | None
+    updated_at: datetime | None
+
+
+class MemoryContextResponse(ResponseSchema):
+    query: str
+    items: list[MemoryContextItemResponse]
+    candidate_count: int
+    omitted_count: int
+    total_chars: int
+    max_chars: int
+
+
 class SessionContextResponse(ResponseSchema):
     session_id: UUID
     summary: str
@@ -139,3 +161,4 @@ class SessionContextResponse(ResponseSchema):
     event_summaries: list[ContextEventSummaryResponse]
     files: list[ContextFileReferenceResponse]
     budget: ContextBudgetResponse
+    memory_context: MemoryContextResponse

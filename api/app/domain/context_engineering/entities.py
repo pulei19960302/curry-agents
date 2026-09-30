@@ -2,6 +2,8 @@ from dataclasses import dataclass
 from datetime import datetime
 from uuid import UUID
 
+from app.domain.memories.entities import MemoryKind
+
 
 @dataclass(slots=True)
 class ContextMessage:
@@ -41,9 +43,43 @@ class ContextBudget:
     included_events: int  # 本次快照参考的最近事件数量。
     omitted_events: int  # 因预算限制被省略的历史事件数量。
     total_message_chars: int  # 裁剪后消息内容的总字符数。
+    memory_limit: int  # 本次最多注入多少条长期记忆。
+    max_memory_chars: int  # 长期记忆区域允许使用的总字符数。
+    included_memories: int  # 本次实际注入的长期记忆数量。
+    omitted_memories: int  # 因相关度或预算限制未注入的候选数量。
+    total_memory_chars: int  # 本次注入的长期记忆总字符数。
 
 
-# session 上下文快照
+@dataclass(slots=True)
+class MemoryContextItem:
+
+    """经过检索和压缩、准备注入 Agent 上下文的一条长期记忆。"""
+
+    id: UUID
+    kind: MemoryKind
+    content: str
+    importance: int
+    relevance_score: float  # 综合相关度、重要度和新鲜度后的最终分数。
+    matched_terms: list[str]  # 与当前任务匹配的关键词，便于解释检索结果。
+    original_chars: int  # 裁剪前字符数。
+    truncated: bool  # 是否按单条记忆预算裁剪。
+    source_session_id: UUID | None
+    source_event_id: UUID | None
+    updated_at: datetime | None
+
+
+@dataclass(slots=True)
+class MemoryContext:
+    """本次任务最终选中的长期记忆上下文。"""
+
+    query: str
+    items: list[MemoryContextItem]
+    candidate_count: int
+    omitted_count: int
+    total_chars: int
+    max_chars: int
+
+
 @dataclass(slots=True)
 class SessionContextSnapshot:
     session_id: UUID
@@ -52,3 +88,4 @@ class SessionContextSnapshot:
     event_summaries: list[ContextEventSummary]
     files: list[ContextFileReference]
     budget: ContextBudget
+    memory_context: MemoryContext

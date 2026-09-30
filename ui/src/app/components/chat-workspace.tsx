@@ -1,31 +1,36 @@
 import { useState } from "react";
 
-import FilePreviewPanel from "@/components/file-preview-panel";
-import ToolPreviewPanel from "@/components/tool-preview-panel";
-import ChatInput from "@/components/chat-input";
-import AttachmentList from "@/components/attachment-list";
-import AttachmentUpload from "@/components/attachment-upload";
-import ConversationTimeline from "@/components/conversation-timeline";
+import type { FilePreviewData } from "@/types/files";
+import type { AgentPlan } from "@/types/planner";
 import SessionControlBar from "@/components/session-control-bar";
+import ConversationTimeline from "@/components/conversation-timeline";
+import AttachmentUpload from "@/components/attachment-upload";
+import AttachmentList from "@/components/attachment-list";
+import ChatInput from "@/components/chat-input";
+import ToolPreviewPanel from "@/components/tool-preview-panel";
+import FilePreviewPanel from "@/components/file-preview-panel";
+import ContextPanel from "@/components/context-panel";
+
 import type {
   AgentTaskItem,
   ChatMessage,
   LoadState,
+  SessionContextData,
   SessionEventItem,
   SessionFileItem,
   SessionItem,
 } from "@/types/sessions";
-import type { FilePreviewData } from "@/types/files";
-import type { AgentPlan } from "@/types/planner";
 
 type ChatWorkspaceProps = {
   attachments: SessionFileItem[];
   draft: string;
   clearingUnread: boolean;
   events: LoadState<SessionEventItem[]>;
+  context: LoadState<SessionContextData>;
   filePreview: LoadState<FilePreviewData | null>;
   messages: LoadState<ChatMessage[]>;
   onClearUnread: () => void;
+  onRefreshContext: () => void;
   onDraftChange: (value: string) => void;
   onPreviewFile: (fileId: string) => void;
   onSend: () => void;
@@ -46,11 +51,13 @@ type ChatWorkspaceProps = {
 export default function ChatWorkspace({
   attachments,
   clearingUnread,
+  context,
   draft,
   events,
   filePreview,
   messages,
   onClearUnread,
+  onRefreshContext,
   onDraftChange,
   onPreviewFile,
   onSend,
@@ -68,11 +75,14 @@ export default function ChatWorkspace({
   uploadingFile,
 }: ChatWorkspaceProps) {
   const [selectedToolEventId, setSelectedToolEventId] = useState<string | null>(null);
+  const [showContextPreview, setShowContextPreview] = useState(false);
   const hasToolPreview = selectedToolEventId !== null;
-  const hasFilePreview = selectedToolEventId === null && selectedFile !== null;
-  const hasPreview = hasToolPreview || hasFilePreview;
+  const hasFilePreview =
+    !showContextPreview && selectedToolEventId === null && selectedFile !== null;
+  const hasPreview = hasToolPreview || hasFilePreview || showContextPreview;
 
   function openFilePreview(file: SessionFileItem) {
+    setShowContextPreview(false);
     setSelectedToolEventId(null);
     onSelectFile(file);
     onPreviewFile(file.file.id);
@@ -88,6 +98,12 @@ export default function ChatWorkspace({
         <SessionControlBar
           clearingUnread={clearingUnread}
           onClearUnread={onClearUnread}
+          onOpenContext={() => {
+            setSelectedToolEventId(null);
+            onSelectFile(null);
+            setShowContextPreview(true);
+            onRefreshContext();
+          }}
           onStop={onStop}
           selectedSession={selectedSession}
           stopping={stopping}
@@ -96,6 +112,7 @@ export default function ChatWorkspace({
           events={events}
           messages={messages}
           onSelectToolEvent={(eventId) => {
+            setShowContextPreview(false);
             onSelectFile(null);
             setSelectedToolEventId(eventId);
           }}
@@ -140,6 +157,16 @@ export default function ChatWorkspace({
             onPreview={onPreviewFile}
             preview={filePreview}
             selectedFile={selectedFile}
+          />
+        </aside>
+      ) : null}
+      {showContextPreview ? (
+        <aside className="h-full w-[560px] shrink-0 border-l border-white/10 bg-black/75 max-xl:h-[720px] max-xl:w-full">
+          <ContextPanel
+            context={context}
+            disabled={!selectedSession}
+            onClose={() => setShowContextPreview(false)}
+            onRefresh={onRefreshContext}
           />
         </aside>
       ) : null}

@@ -1,11 +1,13 @@
 from collections import Counter
+
 from uuid import UUID
 
+from app.application.memory_retrieval_service import MemoryRetrievalService
 from app.application.unit_of_work import UnitOfWork
 from app.core.config import settings
 from app.core.exceptions import AppException
 from app.domain.context_engineering.entities import ContextMessage, ContextEventSummary, ContextFileReference, \
-    ContextBudget, SessionContextSnapshot
+    ContextBudget, SessionContextSnapshot, MemoryContext
 from app.domain.files.entities import SessionFile
 from app.domain.sessions.entities import SessionMessage, SessionEvent
 
@@ -22,7 +24,7 @@ class ContextEngineeringService:
 
     # 构建当前会话上下文快照
 
-    async def build_snapshot(self, session_id: UUID) -> SessionContextSnapshot:
+    async def build_snapshot(self, session_id: UUID, *, task: str | None = None, ) -> SessionContextSnapshot:
         """读取会话数据，并转换成适合 Agent 继续执行的上下文。"""
         session = await self.uow.sessions.get(session_id)
         if session is None:
@@ -39,10 +41,23 @@ class ContextEngineeringService:
         context_messages = self._build_messages(messages)
         event_summaries = self._build_event_summaries(events)
         file_references = self._build_file_references(files)
+
+        # 使用当前任务、会话标题和最近消息构建长期记忆检索查询。
+        memory_query = self._build_memory_query(
+            task=task,
+            session_title=session.title,
+            messages=messages,
+        )
+
+        memory_context = await MemoryRetrievalService(self.uow).retrieve(
+            query=memory_query,
+        )
+
         budget = self._build_budget(
             all_messages=messages,
             included_messages=context_messages,
             all_events=events,
+            memory_context=memory_context,
         )
         summary = self._build_summary(
             message_count=len(messages),
@@ -54,6 +69,7 @@ class ContextEngineeringService:
         return SessionContextSnapshot(
             session_id=session_id,
             summary=summary,
+            memory_context=memory_context,
             messages=context_messages,
             event_summaries=event_summaries,
             files=file_references,
@@ -125,7 +141,8 @@ class ContextEngineeringService:
     def _build_budget(
             all_messages: list[SessionMessage],
             included_messages: list[ContextMessage],
-            all_events: list[SessionEvent]
+            all_events: list[SessionEvent],
+            memory_context: MemoryContext,
     ) -> ContextBudget:
         # 计算多少字符
         total_chars = sum(len(message.content) for message in included_messages)
@@ -139,6 +156,11 @@ class ContextEngineeringService:
             included_events=min(len(all_events), settings.context_event_limit),
             omitted_events=max(len(all_events) - settings.context_event_limit, 0),
             total_message_chars=total_chars,
+            memory_limit=settings.context_memory_limit,
+            max_memory_chars=settings.context_memory_max_chars,
+            included_memories=len(memory_context.items),
+            omitted_memories=memory_context.omitted_count,
+            total_memory_chars=memory_context.total_chars,
         )
 
     @staticmethod
@@ -164,3 +186,48 @@ class ContextEngineeringService:
         }:
             return "可在需要时读取文本预览或下载内容。"
         return "当前只作为文件引用放入上下文，暂不直接读取内容。"
+
+    @staticmethod
+    def _build_memory_query(
+            *,
+            task: str | None,
+            session_title: str,
+            messages: list[SessionMessage],
+    ) -> str:
+        """把当前任务、会话标题和最近消息合并为检索文本。"""
+        parts = [task or "", session_title]
+        parts.extend(message.content for message in messages[-3:])  # -3 取最后三个
+        return "\n".join(part.strip() for part in parts if part.strip())
+
+    # 把上下文快照渲染成 Agent 提示词
+    @staticmethod
+    def render_for_agent(snapshot: SessionContextSnapshot) -> str:
+        """生成 Planner 和 ReAct 可以直接使用的紧凑上下文文本。"""
+
+        sections: list[str] = []
+
+        if snapshot.memory_context.items:
+            memory_lines = [
+                (
+                    f"- [{item.kind.value}] {item.content} "
+                    f"(重要度 {item.importance}，相关度 {item.relevance_score:.2f})"
+                )
+                for item in snapshot.memory_context.items
+            ]
+            sections.append("长期记忆：\n" + "\n".join(memory_lines))
+
+        if snapshot.messages:
+            message_lines = [
+                f"- {message.role}: {message.content}"
+                for message in snapshot.messages
+            ]
+            sections.append("最近消息：\n" + "\n".join(message_lines))
+
+        if snapshot.files:
+            file_lines = [
+                f"- {file.name} ({file.content_type}, {file.usage_hint})"
+                for file in snapshot.files
+            ]
+            sections.append("文件引用：\n" + "\n".join(file_lines))
+
+        return "\n\n".join(sections)

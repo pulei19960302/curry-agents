@@ -1,10 +1,11 @@
-import { BellOff, Square } from "lucide-react";
+import { BellOff, BrainCircuit, Square } from "lucide-react";
 
 import type { SessionItem } from "@/types/sessions";
 
 type SessionControlBarProps = {
   clearingUnread: boolean;
   onClearUnread: () => void;
+  onOpenContext: () => void;
   onStop: () => void;
   selectedSession: SessionItem | null;
   stopping: boolean;
@@ -13,6 +14,7 @@ type SessionControlBarProps = {
 export default function SessionControlBar({
   clearingUnread,
   onClearUnread,
+  onOpenContext,
   onStop,
   selectedSession,
   stopping,
@@ -33,6 +35,15 @@ export default function SessionControlBar({
       </div>
 
       <div className="flex gap-2">
+        <button
+          className="flex h-9 items-center gap-2 rounded-md border border-white/10 px-3 text-sm text-zinc-400 transition hover:bg-white/10 hover:text-zinc-100 disabled:cursor-not-allowed disabled:text-zinc-700"
+          disabled={!selectedSession}
+          onClick={onOpenContext}
+          type="button"
+        >
+          <BrainCircuit size={15} aria-hidden="true" />
+          上下文
+        </button>
         <button
           className="flex h-9 items-center gap-2 rounded-md border border-white/10 px-3 text-sm text-zinc-400 transition hover:bg-white/10 hover:text-zinc-100 disabled:cursor-not-allowed disabled:text-zinc-700"
           disabled={!selectedSession || !hasUnread || clearingUnread}

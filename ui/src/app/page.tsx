@@ -19,7 +19,7 @@ import {
   fetchAppSettings,
   updateSettingsModule,
 } from "./lib/settings-api";
-import type { LoadState, StatusBadgeView } from "@/types/sessions";
+import type { LoadState, SessionContextData, StatusBadgeView } from "@/types/sessions";
 
 import type { VncStatusData } from "@/types/vnc";
 import type { MultiAgentRoleListData } from "@/types/mutil-agent";
@@ -336,6 +336,7 @@ export default function Home() {
           <div className="min-h-0 flex-1">
             {activeView === "workspace" ? (
               <ChatWorkspace
+                context={workspace.context as LoadState<SessionContextData>}
                 attachments={workspace.attachments}
                 clearingUnread={workspace.clearingUnread}
                 draft={workspace.draft}
@@ -344,6 +345,7 @@ export default function Home() {
                 messages={workspace.messages}
                 onClearUnread={workspace.clearUnread}
                 onDraftChange={workspace.setDraft}
+                onRefreshContext={refreshContext}
                 onPreviewFile={workspace.loadFilePreview}
                 onSend={workspace.sendMessage}
                 onSelectFile={workspace.selectFile}
