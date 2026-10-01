@@ -82,6 +82,19 @@ function getErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : "unknown error";
 }
 
+function getStreamErrorMessage(event: StreamEvent): string {
+  const message = event.data.message;
+  const code = event.data.code;
+
+  if (typeof message === "string" && message.trim()) {
+    return typeof code === "string" || typeof code === "number"
+      ? `[${code}] ${message}`
+      : message;
+  }
+
+  return "任务流执行失败";
+}
+
 function sleep(ms: number) {
   return new Promise((resolve) => {
     window.setTimeout(resolve, ms);
@@ -494,6 +507,15 @@ const useSessionStore = create<SessionState & SessionActions>((set, get) => ({
       // ===================== 第1步：通过统一 SSE 发送任务并接收执行过程 =====================
       // 后端会依次推送 message_created、plan_created、step/tool/task 事件。
       await sendMessageToStream(sessionId, content, async (event) => {
+        if (event.event === "stream_error") {
+          set({
+            actionError: getStreamErrorMessage(event),
+            executingPlan: false,
+            planning: false,
+          });
+          return;
+        }
+
         await sleep(getPresentationDelay(event.event));
         const session = toSessionItem(event);
         if (session) {

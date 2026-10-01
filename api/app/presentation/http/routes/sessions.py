@@ -6,6 +6,7 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from uuid import UUID
 
+from app.application.agent_runner_service import AgentRunnerService, AgentRunnerStreamItem
 from app.application.context_engineering_service import ContextEngineeringService
 from app.application.file_service import FileService
 from app.application.llm_service import LLMService
@@ -65,6 +66,14 @@ def build_react_agent_service(
     return ReActAgentService(UnitOfWork(db_session))
 
 
+# 创建agent runner 服务
+def build_agent_runner_service(
+        db_session: AsyncSession = Depends(get_db_session),
+) -> AgentRunnerService:
+    uow = UnitOfWork(db_session)
+    return AgentRunnerService.from_uow(uow, planner_service=PlannerService(uow, LLMService()), )
+
+
 def get_task_queue(request: Request) -> RedisAgentTaskQueue:
     return request.app.state.task_queue
 
@@ -108,6 +117,16 @@ def to_session_file_response(session_file: SessionFile) -> SessionFileResponse:
         file=to_file_response(session_file.file),
         created_at=session_file.created_at
     )
+
+
+def to_runner_stream_payload(item: AgentRunnerStreamItem) -> dict:
+    """把 Runner 产出的领域对象转换成 SSE 可以发送的 JSON 数据。"""
+
+    if isinstance(item.payload, Session):
+        return to_session_response(item.payload).model_dump(mode="json")
+    if isinstance(item.payload, SessionEvent):
+        return to_event_response(item.payload).model_dump(mode="json")
+    return item.payload
 
 
 # 创建session
@@ -314,6 +333,33 @@ async def stream_message(
     )
 
 
+@router.post("/{session_id}/messages/stream/v2", response_class=StreamingResponse)
+async def stream_message_v2(
+        session_id: UUID,
+        payload: MessageCreateRequest,
+        request: Request,
+        runner_service: AgentRunnerService = Depends(build_agent_runner_service),
+) -> StreamingResponse:
+    async def event_stream():
+        # ===================== 第1步：Runner 统一产出 SSE 需要的状态和事件 =====================
+        async for item in runner_service.stream_user_message(
+                session_id=session_id,
+                content=payload.content,
+                request=request,
+        ):
+            yield encode_sse(item.name, to_runner_stream_payload(item))
+
+    return StreamingResponse(
+        event_stream(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
 @router.post("/{session_id}/stop", response_model=ApiResponse[SessionResponse])
 async def stop_session(
         session_id: UUID,
@@ -390,7 +436,7 @@ async def create_plan(
 @router.post("/{session_id}/plan/execute", response_model=ApiResponse[PlanExecuteResponse])
 async def execute_plan(
         session_id: UUID,
-        service: ReActAgentService = Depends(build_react_agent_service)
+        service: AgentRunnerService = Depends(build_agent_runner_service)
 ) -> ApiResponse[PlanExecuteResponse]:
     events = await service.execute_latest_plan(session_id)
     return ApiResponse(

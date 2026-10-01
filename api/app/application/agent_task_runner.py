@@ -17,11 +17,10 @@
 
 import asyncio
 from contextlib import suppress
+from sqlalchemy.ext.asyncio import async_sessionmaker
 from uuid import UUID
 
-from sqlalchemy.ext.asyncio import async_sessionmaker
-
-from app.application.react_agent_service import ReActAgentService
+from app.application.agent_runner_service import AgentRunnerService
 from app.application.unit_of_work import UnitOfWork
 from app.core.config import settings
 from app.infrastructure.redis_task.task_queue import RedisAgentTaskQueue, AgentTaskStatus
@@ -119,8 +118,8 @@ class AgentTaskRunner:
 
     #
     async def _execute_plan(self, session_id: UUID) -> None:
-        """为后台任务创建独立数据库会话，再复用第 19 章执行逻辑。"""
+        """为后台任务创建独立数据库会话"""
 
         async with self.session_factory() as db_session:
-            service = ReActAgentService(UnitOfWork(db_session))
+            service = AgentRunnerService.from_uow(UnitOfWork(db_session))
             await service.execute_latest_plan(session_id)

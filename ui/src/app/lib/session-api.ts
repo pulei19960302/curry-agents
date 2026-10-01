@@ -125,7 +125,7 @@ export async function sendMessageToStream(
   content: string,
   onEvent: (event: StreamEvent) => void,
 ) {
-  const response = await fetch(`/api/sessions/${sessionId}/messages/stream`, {
+  const response = await fetch(`/api/sessions/${sessionId}/messages/stream/v2`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",

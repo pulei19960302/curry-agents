@@ -290,7 +290,6 @@ class ReActAgentService:
                         "title": step.get("title", ""),
                     }
                 )
-                await self.uow.sessions.touch(session_id)
                 await self.uow.commit()
                 yield started_event
 
@@ -341,7 +340,6 @@ class ReActAgentService:
                         "summary": tool_result["output"],
                     },
                 )
-                await self.uow.sessions.touch(session_id)
                 await self.uow.commit()
                 yield completed_event
 
