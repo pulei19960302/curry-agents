@@ -1,11 +1,11 @@
-from asyncio import CancelledError, to_thread, sleep
+from asyncio import CancelledError, sleep
 
 import re
 from collections.abc import AsyncIterator
-from urllib.parse import urlparse
 from uuid import UUID
 
 from app.application.context_engineering_service import ContextEngineeringService
+from app.application.tool_selection_service import ModelToolSelectionService
 from app.application.unit_of_work import UnitOfWork
 from app.core.exceptions import AppException
 from app.domain.context_engineering.entities import MemoryContext
@@ -47,6 +47,7 @@ class ReActAgentService:
         self.uow = uow
         # 注册文本、文件、Shell、浏览器等工具，后续按工具名取得并调用。
         self.registry = build_builtin_tool_registry()
+        self.tool_selector = ModelToolSelectionService(registry=self.registry)
 
     async def execute_latest_plan(self, session_id: UUID) -> list[SessionEvent]:
         """执行指定会话最近一次 ``plan_created`` 事件中的全部步骤。
@@ -191,7 +192,7 @@ class ReActAgentService:
         )
 
         # 选择并执行工具。当前工具接口同步返回，因此这里没有 await。
-        tool_result = self._call_tool_for_step(plan, step, index, memory_context)
+        tool_result = await self._call_tool_for_step(plan, step, index, memory_context)
 
         # 保存工具名、工具参数和输出，便于前端展示与后续问题排查。
         tool_called_event = await self.uow.session_event.add(
@@ -254,7 +255,6 @@ class ReActAgentService:
             )
 
         #  Planner 和 ReAct 复用同一套上下文构建方式。
-
         context_snapshot = await ContextEngineeringService(self.uow).build_snapshot(
             session_id=session_id,
             task=str(plan.get("goal", "")),
@@ -294,8 +294,7 @@ class ReActAgentService:
                 yield started_event
 
                 # 执行工具
-                tool_result = await to_thread(
-                    self._call_tool_for_step,
+                tool_result = await self._call_tool_for_step(
                     plan,
                     step,
                     index,
@@ -316,7 +315,7 @@ class ReActAgentService:
                     },
                 )
                 await self.uow.commit()
-                await sleep(0.2)
+                await sleep(0.5)
                 yield tool_call_event
 
                 # 判断session 状态是不是停止
@@ -474,7 +473,8 @@ class ReActAgentService:
             status_code=404,
         )
 
-    def _call_tool_for_step(self, plan: dict, step: dict, index: int, memory_context: MemoryContext) -> dict:
+    async def _call_tool_for_step(self, plan: dict, step: dict, index: int,
+                                  memory_context: MemoryContext) -> dict:
         """根据计划内容选择工具，并返回可写入事件的调用结果。
 
         当前选择器是确定性的关键词规则，而不是模型在运行时再次推理：
@@ -491,76 +491,21 @@ class ReActAgentService:
         Returns:
             包含 ``tool_name``、``arguments``、``output`` 的字典，字段可直接
             放入 ``tool_called`` 事件的 payload。
+
+
+            通过模型工具选择服务调用一个内置工具。
+            ReAct 不再自己维护大段关键词分支。
+            它把计划、步骤和长期记忆交给 ModelToolSelectionService：
+            - 模型可用时，模型根据工具 schema 输出结构化 tool call。
+            - 模型不可用或输出异常时，服务内部使用确定性 fallback。
         """
 
-        # goal 提供全局上下文，step_text 则只包含当前步骤自身的信息。
-        goal = str(plan.get("goal", ""))
-        title = str(step.get("title", ""))
-        description = str(step.get("description", ""))
-        expected_output = str(step.get("expected_output", ""))
-        step_text = f"{title} {description} {expected_output}".strip()
-        text = f"{goal} {step_text}".strip()
-
-        # 记忆
-        memory_guidance = self._render_memory_guidance(memory_context)
-
-        text_with_memory = (
-            f"{text}\n\n需要遵守的长期记忆：\n{memory_guidance}"
-            if memory_guidance
-            else text
+        result = await self.tool_selector.call_tool_for_step(
+            plan=plan,
+            step=step,
+            index=index,
+            agent_context=self._render_memory_guidance(memory_context)
         )
-
-        if self._needs_multi_agent(text):
-            tool = self.registry.get("multi_agent_collaborate")
-            arguments = {"task": self._extract_multi_agent_task(text_with_memory)}
-
-        elif self._needs_a2a_agent(text):
-            tool = self.registry.get("a2a_call")
-            arguments = {
-                "agent_key": "demo_researcher",
-                "message": self._extract_a2a_message(text_with_memory)
-            }
-
-
-        elif self._needs_mcp(text):
-            tool = self.registry.get("mcp_call")
-            arguments = {
-                "server_name": "demo",
-                "tool_name": "mcp_echo",
-                "arguments_json": '{"text":"来自 MCP 工具的演示响应"}',
-            }
-
-        elif self._needs_search(text):
-            tool = self.registry.get("search_web")
-            arguments = {"query": self._extract_search_query(text), "count": 5}
-
-        elif self._needs_browser_screenshot(text):
-            # 包含截图意图时，第一步优先打开页面；其余步骤再截取当前页面。
-            # 这是简化策略，不会记录某个 URL 是否确实已经被打开。
-            if index == 1 or (
-                    self._needs_browser_open(step_text)
-                    and not self._needs_browser_screenshot(step_text)
-            ):
-                tool = self.registry.get("browser_open")
-                arguments = {"url": self._extract_url(text)}
-            else:
-                tool = self.registry.get("browser_screenshot")
-                arguments = {"full_page": True}
-        elif self._needs_browser_open(text):
-            tool = self.registry.get("browser_open")
-            arguments = {"url": self._extract_url(text)}
-        elif "拆" in title or "步骤" in title or "计划" in title:
-            tool = self.registry.get("draft_plan")
-            arguments = {"task": text_with_memory}
-        elif "关键" in title or "重点" in title:
-            tool = self.registry.get("extract_keywords")
-            arguments = {"text": text_with_memory}
-        else:
-            tool = self.registry.get("summarize_text")
-            arguments = {"text": text_with_memory}
-
-        # AgentTool.call 负责最小参数校验、调用 handler，并统一包装返回结果。
-        result = tool.call(arguments)
         return {
             "tool_name": result.tool_name,
             "arguments": result.arguments,
@@ -568,171 +513,14 @@ class ReActAgentService:
         }
 
     @staticmethod
-    def _needs_multi_agent(text: str) -> bool:
-        """判断当前步骤是否需要多 Agent 协作编排。"""
-
-        if any(keyword in text for keyword in ["A2A", "a2a", "远程 Agent", "远程智能体"]):
-            return False
-
-        keywords = [
-            "多 Agent",
-            "多Agent",
-            "多个 Agent",
-            "多个智能体",
-            "分工",
-            "协作",
-            "评审",
-            "Reviewer",
-            "Manager",
-            "Worker",
-            "汇总",
-        ]
-        return any(keyword in text for keyword in keywords)
-
-    @staticmethod
     def _render_memory_guidance(memory_context: MemoryContext) -> str:
-        """把已检索记忆压缩成工具可读的指导文本。
-
-        工具类型仍由当前任务文本决定，避免旧记忆中的“浏览器、搜索”等词
-        误触发工具；选中工具后，文本类工具会收到这些长期约束和偏好。
+        """
+            把已检索记忆压缩成工具可读的指导文本。
+            工具类型仍由当前任务文本决定，避免旧记忆中的“浏览器、搜索”等词
+            误触发工具；选中工具后，文本类工具会收到这些长期约束和偏好。
         """
 
         return "\n".join(
             f"- [{item.kind.value}] {item.content}"
             for item in memory_context.items
         )
-
-    @staticmethod
-    def _extract_a2a_message(text: str) -> str:
-        """从计划文本中提取给远程 Agent 的任务消息。"""
-
-        clean_text = " ".join(text.split())
-        for keyword in ["A2A", "a2a", "远程 Agent", "远程agent", "远程智能体"]:
-            clean_text = clean_text.replace(keyword, " ")
-        return " ".join(clean_text.split())[:400] or text[:400]
-
-    @staticmethod
-    def _extract_multi_agent_task(text: str) -> str:
-        """从计划文本中提取多 Agent 协作任务。"""
-
-        clean_text = " ".join(text.split())
-        for keyword in ["多 Agent", "多Agent", "多个 Agent", "多个智能体"]:
-            clean_text = clean_text.replace(keyword, " ")
-        return " ".join(clean_text.split())[:400] or text[:400]
-
-    @staticmethod
-    def _needs_a2a_agent(text: str) -> bool:
-        keywords = ["A2A", "a2a", "远程 Agent", "远程智能体", "协作 Agent"]
-        return any(keyword in text for keyword in keywords)
-
-    @staticmethod
-    def _needs_browser_open(text: str) -> bool:
-        """根据中文关键词判断文本是否表达网页访问意图。
-
-        这是启发式字符串匹配，例如“打开网页”会命中；它不理解语义，也暂时
-        不处理英文同义词。后续可由 LLM 的结构化工具调用替代。
-        """
-
-        keywords = ["网页", "网站", "浏览器", "访问", "打开", "页面"]
-        return any(keyword in text for keyword in keywords)
-
-    @staticmethod
-    def _needs_browser_screenshot(text: str) -> bool:
-        """根据中文关键词判断文本是否要求截取当前浏览器页面。"""
-
-        keywords = ["截图", "截屏", "页面截图", "观察页面"]
-        return any(keyword in text for keyword in keywords)
-
-    @staticmethod
-    def _needs_mcp(text: str) -> bool:
-        """判断当前步骤是否需要调用 MCP 工具。"""
-
-        keywords = ["MCP", "mcp", "外部工具", "外部系统"]
-        return any(keyword in text for keyword in keywords)
-
-    @staticmethod
-    def _needs_search(text: str) -> bool:
-        """判断当前步骤是否需要搜索公开网页。
-
-        先用关键词规则选择 SearchTool。后续接入更完整的模型
-        工具选择后，这里会逐步退化成兜底逻辑。
-        """
-        keywords = ["搜索", "检索", "查找", "查询", "资料", "新闻", "最新"]
-        return any(keyword in text for keyword in keywords)
-
-    @staticmethod
-    def _extract_search_query(text: str) -> str:
-        """从计划文本中提取搜索关键词。
-
-        现在的计划步骤还不是严格工具参数，所以先去掉常见动作词，
-        保留用户真正想查的内容。
-        """
-        clean_text = " ".join(text.split())
-        for keyword in ["搜索", "检索", "查找", "查询", "一下", "资料"]:
-            clean_text = clean_text.replace(keyword, " ")
-        return " ".join(clean_text.split())[:120] or text[:120]
-
-    @staticmethod
-    def _extract_url(text: str) -> str:
-        """从计划步骤中提取 URL，没有 URL 时使用稳定示例站点。
-
-        正则会从连续文本中提取第一个以 http/https 或 www. 开头的地址，并在
-        中文标点、空白等边界停止。例如“访问 https://www.baidu.com，等待加载”
-        会正确提取为 ``https://www.baidu.com``，不会把“等待加载”拼进域名。
-        ``www.baidu.com`` 这类无协议地址会补为 ``https://www.baidu.com``。
-
-        计划没有明确 URL 时，会回退到 ``https://example.com``，以保证
-        ``browser_open`` 的必填 ``url`` 参数始终存在。
-
-        后续可让 LLM 在步骤 payload 中直接输出 url 字段，避免依赖字符串解析。
-        """
-
-        for match in _URL_PATTERN.finditer(text):
-            # urlparse 只有看到协议时才会把主机名放进 netloc，因此为 www. 补充
-            # https:// 后再校验，既支持 LLM 输出的完整 URL，也支持用户裸域名。
-            # 英文句点和 ? 可能属于域名、路径或查询参数，正则不能把它们作为
-            # 边界；仅在这里去掉 URL 结尾可能附带的英文句末标点。
-            candidate = match.group().rstrip(".,!?")
-            normalized_url = (
-                candidate
-                if candidate.lower().startswith(("http://", "https://"))
-                else f"https://{candidate}"
-            )
-            parsed = urlparse(normalized_url)
-            if parsed.scheme in {"http", "https"} and parsed.netloc:
-                return normalized_url
-        return "https://example.com"
-
-# 示例计划：
-# plan = {
-#     "id": "plan-001",
-#     "goal": "访问 https://example.com 并截图",
-#     "steps": [
-#         {
-#             "id": "step-1",
-#             "title": "打开网页",
-#             "description": "访问目标网站",
-#         },
-#         {
-#             "id": "step-2",
-#             "title": "保存截图",
-#             "description": "截取当前页面",
-#         },
-#     ],
-# }
-#
-# 上述计划执行后会写入以下事件流：
-# step-1
-#   -> step_started
-#   -> browser_open(url="https://example.com")
-#   -> tool_called
-#   -> step_completed
-#
-# step-2
-#   -> step_started
-#   -> browser_screenshot(full_page=True)
-#   -> tool_called
-#   -> step_completed
-#
-# 最后
-#   -> task_done
