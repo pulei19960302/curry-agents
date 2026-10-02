@@ -489,3 +489,39 @@ async def cancel_agent_task(
             data=None,
         )
     return ApiResponse(data=AgentTaskResponse.model_validate(task))
+
+
+@router.post(
+    "/tasks/{task_id}/retry",
+    response_model=ApiResponse[AgentTaskResponse],
+)
+async def retry_agent_task(
+        task_id: str,
+        queue: RedisAgentTaskQueue = Depends(get_task_queue),
+) -> ApiResponse[AgentTaskResponse]:
+    task = await queue.retry_task(task_id)
+    if task is None:
+        return ApiResponse(
+            code=404,
+            message="task not found",
+            data=None,
+        )
+    return ApiResponse(data=AgentTaskResponse.model_validate(task))
+
+
+@router.get(
+    "/{session_id}/tasks/latest",
+    response_model=ApiResponse[AgentTaskResponse],
+)
+async def recover_latest_session_task(
+        session_id: UUID,
+        queue: RedisAgentTaskQueue = Depends(get_task_queue),
+) -> ApiResponse[AgentTaskResponse]:
+    task = await queue.recover_session_task(session_id)
+    if task is None:
+        return ApiResponse(
+            code=404,
+            message="task not found",
+            data=None,
+        )
+    return ApiResponse(data=AgentTaskResponse.model_validate(task))

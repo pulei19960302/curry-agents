@@ -96,6 +96,8 @@ class AgentTaskResponse(ResponseSchema):
     error: str | None
     created_at: datetime
     updated_at: datetime
+    parent_task_id: str | None = None
+    retry_count: int = 0
 
 
 class ContextMessageResponse(ResponseSchema):

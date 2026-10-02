@@ -70,10 +70,20 @@ export type AgentTaskItem = {
   id: string;
   session_id: string;
   type: string;
-  status: "queued" | "running" | "succeeded" | "failed" | "cancelled";
+  status:
+    | "queued"
+    | "running"
+    | "waiting"
+    | "completed"
+    | "succeeded"
+    | "failed"
+    | "stopped"
+    | "cancelled";
   error: string | null;
   created_at: string;
   updated_at: string;
+  parent_task_id: string | null;
+  retry_count: number;
 };
 
 export type ContextMessage = {

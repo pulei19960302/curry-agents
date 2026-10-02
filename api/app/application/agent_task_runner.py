@@ -96,8 +96,11 @@ class AgentTaskRunner:
             return
 
         task = await self.queue.get_task(task_id)
-        # 判断是不是none和状态
-        if task is None or task.status is AgentTaskStatus.cancelled:
+        # 判断是不是none和其他不能继续执行的状态状态
+        if task is None or task.status in {
+            AgentTaskStatus.cancelled,
+            AgentTaskStatus.stopped,
+        }:
             return
 
         await self.queue.mark_running(task_id)
@@ -112,7 +115,10 @@ class AgentTaskRunner:
             return
 
         latest_task = await self.queue.get_task(task_id)
-        if latest_task and latest_task.status is AgentTaskStatus.cancelled:
+        if latest_task and latest_task.status in {
+            AgentTaskStatus.cancelled,
+            AgentTaskStatus.stopped
+        }:
             return
         await self.queue.mark_succeeded(task_id)
 

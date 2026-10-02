@@ -259,7 +259,7 @@ function StepCard({
 
   return (
     <div className="relative">
-      <div className="absolute -left-[43px] flex h-7 w-7 items-center justify-center rounded-full border border-zinc-800 bg-[#08090d]">
+      <div className="absolute top-2 -left-[43px] flex h-7 w-7 items-center justify-center rounded-full border border-zinc-800 bg-[#08090d]">
         {completed ? (
           <Check className="text-blue-400" size={17} aria-hidden="true" />
         ) : running ? (
@@ -335,11 +335,19 @@ function StepCard({
 }
 
 function TaskStatusCard({ task }: { task: AgentTaskItem | null }) {
-  if (!task || ["succeeded", "failed", "cancelled"].includes(task.status)) {
+  if (!task || ["completed", "succeeded", "failed", "stopped", "cancelled"].includes(task.status)) {
     return null;
   }
 
-  return <RunningBlock text={`后台任务正在执行：${task.status}`} />;
+  return (
+    <RunningBlock
+      text={
+        task.status === "waiting"
+          ? "后台任务等待外部资源或人工继续"
+          : `后台任务正在执行：${task.status}`
+      }
+    />
+  );
 }
 
 function RunningBlock({ text }: { text: string }) {

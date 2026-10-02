@@ -28,7 +28,7 @@ class ReActAgentService:
     状态会持续写入 session_event，前端可据此展示执行进度。
 
     正常执行时，事件顺序为：
-    ``plan_created -> step_started -> tool_called -> step_completed -> task_done``。
+    ``plan_created -> for[step_started -> tool_called -> step_completed]-> task_done``。
     每一个计划步骤都会重复中间三个事件。
 
     Example:

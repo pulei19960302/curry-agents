@@ -1,9 +1,8 @@
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from enum import StrEnum
-from uuid import UUID, uuid4
-
 from redis.asyncio import Redis
+from uuid import UUID, uuid4
 
 from app.core.config import settings
 
@@ -24,6 +23,10 @@ class AgentTaskStatus(StrEnum):
     # 任务取消
     cancelled = "cancelled"
 
+    waiting = "waiting"
+    completed = "completed"
+    stopped = "stopped"
+
 
 # 给前端看的任务对象
 @dataclass(slots=True)
@@ -35,6 +38,8 @@ class AgentTask:
     error: str | None
     created_at: str
     updated_at: str
+    parent_task_id: str | None = None  # 如果这个任务是重试任务，它指向原任务 ID。
+    retry_count: int = 0  # 当前重试次数，第一次重试是 1
 
 
 class RedisAgentTaskQueue:
@@ -49,7 +54,13 @@ class RedisAgentTaskQueue:
         self.stream_name = stream_name or settings.agent_task_stream
 
     # 创建任务并写入 Stream
-    async def enqueue_execute_plan(self, session_id: UUID) -> AgentTask:
+    async def enqueue_execute_plan(
+            self,
+            session_id: UUID,
+            *,
+            parent_task_id: str | None = None,
+            retry_count: int = 0,
+    ) -> AgentTask:
         """创建一个执行计划任务，并把任务 ID 写入 Redis Stream。"""
 
         now = self._now()
@@ -61,6 +72,8 @@ class RedisAgentTaskQueue:
             error=None,
             created_at=now,
             updated_at=now,
+            parent_task_id=parent_task_id,
+            retry_count=retry_count,
         )
 
         """
@@ -71,6 +84,7 @@ class RedisAgentTaskQueue:
 
         # 任务状态写入 Redis Hash
         await self._write_task(task)
+        await self._write_latest_session_task(task)
 
         # 任务消息写入 Redis Stream
         await self.redis.xadd(
@@ -79,6 +93,8 @@ class RedisAgentTaskQueue:
                 "task_id": task.id,
                 "session_id": str(session_id),
                 "type": task.type,
+                "parent_task_id": parent_task_id or "",
+                "retry_count": str(retry_count),
             },
         )
         return task
@@ -94,36 +110,76 @@ class RedisAgentTaskQueue:
     # 取消还没有完成的任务
     async def cancel_task(self, task_id: str) -> AgentTask | None:
         """
+            把任务标记为 stopped。
+            第 44 章开始使用 stopped 表达“用户主动停止”。
+            cancelled 作为早期状态仍然保留在枚举中，用于读取旧任务。
             把任务标记为 cancelled。
-            本章的 Runner 是短任务同步执行，如果任务已经 running，取消会尽力标记状态；
-            第 20 章先理解任务状态流转，后续长任务会再加入更细的中断点。
         """
         task = await self.get_task(task_id)
         if task is None:
             return None
 
-        # 判断状态
+        # 判断状态如果是这个，就不能修改
         if task.status in {
+            AgentTaskStatus.completed,
             AgentTaskStatus.succeeded,
             AgentTaskStatus.failed,
+            AgentTaskStatus.stopped,
             AgentTaskStatus.cancelled,
         }:
             return task
 
-        task.status = AgentTaskStatus.cancelled
+        task.status = AgentTaskStatus.stopped
         task.updated_at = self._now()
+        # 重新写入redis
         await self._write_task(task)
+        await self._write_latest_session_task(task)
         return task
+
+    # 失败或停止后的重试与恢复
+    async def retry_task(self, task_id) -> AgentTask | None:
+        """基于历史任务创建一个新的 queued 任务。"""
+
+        task = await self.get_task(task_id)
+        if task is None:
+            return None
+
+        # 只有当前任务处于下面状态才能重新来
+        if task.status not in {
+            AgentTaskStatus.failed,
+            AgentTaskStatus.stopped,
+            AgentTaskStatus.cancelled,
+        }:
+            return task
+
+        # 重新创建plan
+        return await self.enqueue_execute_plan(
+            session_id=task.session_id,
+            parent_task_id=task.id,
+            retry_count=task.retry_count + 1
+        )
+
+    async def recover_session_task(self, session_id: UUID):
+        """读取某个会话最近一次后台任务状态。"""
+        data = await self.redis.hgetall(self._latest_task_key(session_id))
+        task_id = str(data.get("task_id") or "")
+        if not task_id:
+            return None
+        return await self.get_task(task_id)
 
     async def mark_running(self, task_id: str) -> AgentTask | None:
         return await self._update_status(task_id, AgentTaskStatus.running)
 
+    async def mark_waiting(self, task_id: str, reason: str | None = None) -> AgentTask | None:
+        return await self._update_status(task_id, AgentTaskStatus.waiting, error=reason)
+
     async def mark_succeeded(self, task_id: str) -> AgentTask | None:
-        return await self._update_status(task_id, AgentTaskStatus.succeeded)
+        return await self._update_status(task_id, AgentTaskStatus.completed)
 
     async def mark_failed(self, task_id: str, error: str) -> AgentTask | None:
         return await self._update_status(task_id, AgentTaskStatus.failed, error=error)
 
+    # 更新
     async def _update_status(
             self,
             task_id: str,
@@ -137,6 +193,7 @@ class RedisAgentTaskQueue:
         task.error = error
         task.updated_at = self._now()
         await self._write_task(task)
+        await self._write_latest_session_task(task)
         return task
 
     # 封装 Redis Hash 读写细节
@@ -154,6 +211,15 @@ class RedisAgentTaskQueue:
             }
         )
 
+    async def _write_latest_session_task(self, task: AgentTask) -> None:
+        await self.redis.hset(
+            self._latest_task_key(task.session_id),
+            mapping={
+                "task_id": task.id,
+                "updated_at": task.updated_at,
+            }
+        )
+
     def _to_task(self, data: dict) -> AgentTask:
         return AgentTask(
             id=str(data["id"]),
@@ -163,12 +229,20 @@ class RedisAgentTaskQueue:
             error=str(data["error"]) or None,
             created_at=str(data["created_at"]),
             updated_at=str(data["updated_at"]),
+            parent_task_id=str(data.get("parent_task_id") or "") or None,
+            retry_count=int(data.get("retry_count") or 0)
         )
 
-    def _task_key(self, task_id: str) -> str:
+    @staticmethod
+    def _task_key(task_id: str) -> str:
         return f"agent:task:{task_id}"
 
-    def _now(self) -> str:
+    @staticmethod
+    def _latest_task_key(session_id: UUID) -> str:
+        return f"agent:session:{session_id}:latest-task"
+
+    @staticmethod
+    def _now() -> str:
         return datetime.now(UTC).isoformat()
 
 
