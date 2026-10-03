@@ -158,6 +158,9 @@ services:
       CONTEXT_MEMORY_ITEM_MAX_CHARS: ${CONTEXT_MEMORY_ITEM_MAX_CHARS:-500}
       CONTEXT_MEMORY_MIN_SCORE: ${CONTEXT_MEMORY_MIN_SCORE:-0.12}
 
+      # 运行
+      RUN_MIGRATIONS: ${RUN_MIGRATIONS:-true}
+
     ports:
       - "${API_PORT:-8000}:8000"
     volumes:
@@ -170,9 +173,13 @@ services:
       timeout: 5s
       retries: 5
     depends_on:
-      - postgres
-      - redis
-      - jaeger
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      jaeger:
+        condition: service_started
+
 
   # 沙箱api服务
   sandbox:
@@ -248,12 +255,22 @@ services:
       API_PROXY_URL: ${UI_API_PROXY_URL:-http://nginx/api/:path*}
       NEXT_PUBLIC_VNC_PROXY_ORIGIN: ${UI_VNC_PROXY_ORIGIN:-http://localhost:8088}
       NEXT_TELEMETRY_DISABLED: 1
+      # Next standalone server 默认会读取容器的 HOSTNAME，可能只绑定容器网卡地址。
+      # 显式监听所有接口，确保容器内 localhost 健康检查和宿主机端口映射都可用。
+      HOSTNAME: 0.0.0.0
     ports:
       - "${UI_PORT:-3000}:3000"
     networks:
       - curry-network
     depends_on:
-      - api
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: [ "CMD", "node", "-e", "fetch('http://127.0.0.1:3000').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
 
   # nginx 相关服务
   nginx:
@@ -264,12 +281,22 @@ services:
       - "${NGINX_PORT:-8088}:80"
     volumes:
       - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+      - api_uploads:/var/www/uploads
     networks:
       - curry-network
     depends_on:
-      - api
-      - ui
-      - sandbox
+      api:
+        condition: service_healthy # 必须等待“api”服务被启动。并通过健康检查。在相应的服务需要配置healthcheck
+      ui:
+        condition: service_healthy
+      sandbox:
+        condition: service_started
+    healthcheck:
+      test: [ "CMD", "wget", "--spider", "-q", "http://127.0.0.1/" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
 
 
 # 这里使用 Docker Volume 保存上传文件。容器重建后，/app/uploads 里的内容不会因为新容器启动就丢失。

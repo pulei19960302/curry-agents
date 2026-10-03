@@ -17,12 +17,15 @@ COPY app ./app
 COPY alembic ./alembic
 COPY alembic.ini ./alembic.ini
 COPY config ./config
+COPY scripts ./scripts
+
+RUN chmod +x ./scripts/start.sh
 
 RUN uv sync --frozen --no-dev
 
 EXPOSE 8000
 
-CMD ["uv", "run", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["./scripts/start.sh"]
 
 # - 使用 python:3.12-slim 作为基础镜像。
 #- 设置 /app 为工作目录。
