@@ -58,12 +58,6 @@ class Settings(BaseSettings):
     agent_task_stream: str = "agent:tasks"
     agent_task_poll_timeout_ms: int = 1000
 
-    # OpenTelemetry 配置
-    otel_enabled: bool = True
-    otel_service_name: str = "curry-agent-api"
-    otel_exporter_otlp_endpoint: str = "http://127.0.0.1:4317"
-    otel_exporter_otlp_insecure: bool = True
-
     # 上下文相关配置
 
     # 表示最多放多少条最近消息。
