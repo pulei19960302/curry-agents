@@ -9,6 +9,7 @@ import type {
   SettingsModule,
 } from "@/types/setting";
 import MemorySettingsPanel from "@/components/memory-settings-panel";
+import HarnessPanel from "@/components/harness-panel";
 
 type SettingsWorkspaceProps = {
   onCreateIntegration: (payload: {
@@ -104,6 +105,7 @@ function SettingsReadyView({
       </section>
 
       <MemorySettingsPanel />
+      <HarnessPanel />
 
       <section className="grid grid-cols-[1fr_360px] gap-5 max-xl:grid-cols-1">
         <IntegrationList
