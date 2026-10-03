@@ -6,6 +6,7 @@ from app.application.agent_task_runner import AgentTaskRunner
 from app.core.config import settings
 from app.core.handlers import register_exception_handlers
 from app.core.logging import configure_logging
+from app.core.telemetry import setup_telemetry, shutdown_telemetry
 from app.infrastructure.database.session import AsyncSessionLocal
 from app.infrastructure.redis_task.task_queue import create_redis_client, RedisAgentTaskQueue
 from app.presentation.http.router import api_router
@@ -30,6 +31,7 @@ async def lifespan(app: FastAPI):
         # 应用关闭时释放后台任务和 Redis 连接
         await runner.stop()
         await redis.aclose()
+        shutdown_telemetry()
 
 
 def create_app() -> FastAPI:
@@ -41,6 +43,7 @@ def create_app() -> FastAPI:
         version=settings.api_version,
         lifespan=lifespan
     )
+    setup_telemetry(app_instance)
     app_instance.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_allow_origins,
