@@ -1,5 +1,5 @@
-import { CheckCircle2, Plus, RefreshCcw, Settings, Trash2, XCircle } from "lucide-react";
 import { useState } from "react";
+import { CheckCircle2, Plus, RefreshCcw, Settings, Trash2, XCircle } from "lucide-react";
 
 import type { LoadState } from "@/types/sessions";
 import type {
@@ -10,6 +10,7 @@ import type {
 } from "@/types/setting";
 import MemorySettingsPanel from "@/components/memory-settings-panel";
 import HarnessPanel from "@/components/harness-panel";
+import ObservabilityPanel from "@/components/observability-panel";
 
 type SettingsWorkspaceProps = {
   onCreateIntegration: (payload: {
@@ -106,6 +107,7 @@ function SettingsReadyView({
 
       <MemorySettingsPanel />
       <HarnessPanel />
+      <ObservabilityPanel />
 
       <section className="grid grid-cols-[1fr_360px] gap-5 max-xl:grid-cols-1">
         <IntegrationList

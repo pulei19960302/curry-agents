@@ -208,6 +208,8 @@ class RedisAgentTaskQueue:
                 "error": task.error or "",
                 "created_at": task.created_at,
                 "updated_at": task.updated_at,
+                "parent_task_id": task.parent_task_id or "",
+                "retry_count": str(task.retry_count),
             }
         )
 

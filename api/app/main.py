@@ -1,11 +1,13 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from starlette.middleware.cors import CORSMiddleware
+from typing import Any, cast
 
 from app.application.agent_task_runner import AgentTaskRunner
 from app.core.config import settings
 from app.core.handlers import register_exception_handlers
 from app.core.logging import configure_logging
+from app.core.request_id import RequestIdMiddleware
 from app.infrastructure.database.session import AsyncSessionLocal
 from app.infrastructure.redis_task.task_queue import create_redis_client, RedisAgentTaskQueue
 from app.presentation.http.router import api_router
@@ -41,8 +43,13 @@ def create_app() -> FastAPI:
         version=settings.api_version,
         lifespan=lifespan
     )
+
     app_instance.add_middleware(
-        CORSMiddleware,
+        cast(Any, RequestIdMiddleware),
+    )
+
+    app_instance.add_middleware(
+        cast(Any, CORSMiddleware),
         allow_origins=settings.cors_allow_origins,
         allow_credentials=settings.cors_allow_credentials,
         allow_methods=settings.cors_allow_methods,

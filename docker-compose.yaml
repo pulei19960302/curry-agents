@@ -29,7 +29,7 @@ services:
 
   # 负责缓存和消息流基础能力。后续后台任务和事件推送会用到它
   redis:
-    image: redis:7-alpine
+    image: redis:8-alpine
     container_name: curry-redis
     restart: unless-stopped
     command: >
@@ -268,13 +268,14 @@ services:
       ui:
         condition: service_healthy
       sandbox:
-        condition: service_started
+        condition: service_healthy
     healthcheck:
       test: [ "CMD", "wget", "--spider", "-q", "http://127.0.0.1/" ]
       interval: 10s
       timeout: 5s
       retries: 5
       start_period: 30s
+
 
 
 # 这里使用 Docker Volume 保存上传文件。容器重建后，/app/uploads 里的内容不会因为新容器启动就丢失。

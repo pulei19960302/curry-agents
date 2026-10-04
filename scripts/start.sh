@@ -27,6 +27,8 @@ docker  compose ps
 GATEWAY_PORT="${NGINX_PORT:-8088}"
 
 
+docker compose restart nginx
+
 cat <<EOF
 
 CurryAgent is starting.
