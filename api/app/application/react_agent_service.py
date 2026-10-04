@@ -4,7 +4,9 @@ import re
 from collections.abc import AsyncIterator
 from uuid import UUID
 
+from app.application.content_generation_service import ContentGenerationService
 from app.application.context_engineering_service import ContextEngineeringService
+from app.application.llm_service import LLMService
 from app.application.tool_selection_service import ModelToolSelectionService
 from app.application.unit_of_work import UnitOfWork
 from app.core.exceptions import AppException
@@ -47,7 +49,14 @@ class ReActAgentService:
         self.uow = uow
         # 注册文本、文件、Shell、浏览器等工具，后续按工具名取得并调用。
         self.registry = build_builtin_tool_registry()
-        self.tool_selector = ModelToolSelectionService(registry=self.registry)
+        llm_service = LLMService()
+        self.tool_selector = ModelToolSelectionService(
+            registry=self.registry,
+            llm_service=llm_service,
+        )
+        self.content_generation_service = ContentGenerationService(
+            llm_service=llm_service,
+        )
 
     async def execute_latest_plan(self, session_id: UUID) -> list[SessionEvent]:
         """执行指定会话最近一次 ``plan_created`` 事件中的全部步骤。
@@ -500,11 +509,37 @@ class ReActAgentService:
             - 模型不可用或输出异常时，服务内部使用确定性 fallback。
         """
 
-        result = await self.tool_selector.call_tool_for_step(
+        decision = await self.tool_selector.call_tool_for_step(
             plan=plan,
             step=step,
             index=index,
-            agent_context=self._render_memory_guidance(memory_context)
+            agent_context=self._render_memory_guidance(memory_context),
+        )
+
+        tool = self.registry.get(decision.tool_name)
+        arguments = dict(decision.arguments)
+        agent_context = self._render_memory_guidance(memory_context)
+
+        # 去判断这个工具里面是否有需要模型生成的参数 generated_by_model=True。如果鱼
+        for parameter in tool.definition.parameters:
+            if not parameter.generated_by_model:
+                continue
+
+            arguments[parameter.name] = (
+                await self.content_generation_service.generate_parameter(
+                    plan=plan,
+                    step=step,
+                    tool_name=decision.tool_name,
+                    parameter_name=parameter.name,
+                    parameter_description=parameter.description,
+                    current_arguments=arguments,
+                    agent_context=agent_context,
+                )
+            )
+
+        result = await self.tool_selector.execute_tool(
+            tool_name=decision.tool_name,
+            arguments=arguments,
         )
         return {
             "tool_name": result.tool_name,

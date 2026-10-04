@@ -25,3 +25,13 @@ class LLMChatResult:
     model: str
     content: str
     usage: dict | None = None
+    finish_reason: str | None = None
+
+
+@dataclass(slots=True)
+class LLMStreamChunk:
+    """One chunk from a streaming chat-completion response."""
+
+    content: str = ""
+    finish_reason: str | None = None
+    usage: dict | None = None

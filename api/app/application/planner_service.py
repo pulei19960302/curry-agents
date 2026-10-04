@@ -78,7 +78,8 @@ class PlannerService:
                     LLMMessage(
                         role="system",
                         content=(
-                            "你是一个 PlannerAgent。请把用户任务拆成 3 到 5 个可执行步骤。"
+                            "你是一个 PlannerAgent。请把用户任务拆成 3 到 8 个可执行步骤。"
+                            "每一步的职责尽量单一"
                             "只返回 JSON，不要返回 Markdown。JSON 格式为："
                             '{"title":"计划标题","goal":"目标","steps":['
                             '{"title":"步骤标题","description":"步骤说明","expected_output":"预期输出"}'

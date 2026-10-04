@@ -76,6 +76,7 @@ def register_sandbox_file_tools(
                         name="content",
                         type="string",
                         description="要写入文件的文本内容。",
+                        generated_by_model=True
                     ),
                 ],
             ),
@@ -104,6 +105,7 @@ def register_sandbox_file_tools(
                         name="new_text",
                         type="string",
                         description="替换后的新文本。",
+                        generated_by_model=True,
                     ),
                 ]
             ),

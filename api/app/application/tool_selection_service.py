@@ -1,20 +1,28 @@
 from asyncio import to_thread
 
 import json
+import logging
 import re
 from dataclasses import dataclass
 from typing import Any
-from urllib.parse import urlparse
+from urllib.parse import quote, unquote, urlparse
 
 from app.application.llm_service import LLMService
+from app.core.config import settings
 from app.core.exceptions import AppException
-from app.domain.agent_core.tools import ToolCallResult, ToolRegistry, ToolDefinition, AgentTool
+from app.domain.agent_core.tools import ToolRegistry, ToolDefinition, AgentTool, ToolCallResult
 from app.domain.llm.entities import LLMMessage
+
+logger = logging.getLogger(__name__)
 
 # URL 可能紧接在中文句子中，例如："访问 https://www.baidu.com，等待加载"。
 # 因此不能只按空白分割；匹配到中文标点、空白或常见句末符号时就停止。
 _URL_PATTERN = re.compile(
     r"(?:https?://|www\.)[^\s，。！？、()（）\[\]{}<>\"']+",
+    re.IGNORECASE,
+)
+_LOCAL_HTML_PATTERN = re.compile(
+    r"(?:/workspace/|\./|/)?[\w./-]+\.(?:html?|xhtml)\b",
     re.IGNORECASE,
 )
 
@@ -50,8 +58,8 @@ class ModelToolSelectionService:
             step: dict,
             index: int,
             agent_context: str
-    ) -> ToolCallResult:
-        """选择一个工具、修复参数、执行工具并返回统一结果。"""
+    ) -> ToolSelectionDecision:
+        """选择一个工具并返回已经补齐普通参数的选择结果。"""
 
         # 收集当前任务文本。工具选择必须优先看当前任务，避免长期记忆误触发工具。
 
@@ -63,7 +71,7 @@ class ModelToolSelectionService:
         step_text = f"{title} {description} {expected_output}".strip()
         task_text = f"{goal} {step_text}".strip()
 
-        # 先尝试模型工具选择；失败后使用确定性规则兜底。
+        # 先尝试模型工具选择。选择失败时直接报错，避免静默执行错误工具。
         decision = await self._select_with_model(
             overall_goal=goal,
             current_step={
@@ -76,11 +84,10 @@ class ModelToolSelectionService:
         )
 
         if decision is None:
-            decision = self._select_with_rules(
-                task_text=task_text,
-                step_text=step_text,
-                index=index,
-                agent_context=agent_context,
+            raise AppException(
+                code=400,
+                message="LLM choose tool error",
+                status_code=400
             )
 
         # 校验工具存在，并在调用前修复缺失的常见参数。
@@ -92,10 +99,35 @@ class ModelToolSelectionService:
             task_text=task_text,
             agent_context=agent_context,
         )
+
+        # 补充完善
+        return ToolSelectionDecision(
+            tool_name=decision.tool_name,
+            source=decision.source,
+            observable_summary=decision.observable_summary,
+            arguments=arguments
+        )
+
+    async def execute_tool(
+            self,
+            *,
+            tool_name: str,
+            arguments: dict[str, Any],
+    ) -> ToolCallResult:
+
+        tool = self.registry.get(tool_name)
+
+        repaired_arguments = self._repair_arguments(
+            tool=tool,
+            arguments=arguments,
+            task_text="",
+            agent_context="",
+        )
+
         # 把同步、可能阻塞的函数放到线程池中执行，避免阻塞当前的异步事件循环。
         return await to_thread(
             tool.call,
-            arguments
+            repaired_arguments,
         )
 
     # 让模型输出结构化 tool call
@@ -119,6 +151,16 @@ class ModelToolSelectionService:
                             "不要因为 overall_goal 中包含其他动作，"
                             "而提前执行其他步骤的工具。"
                             "请只返回 JSON，不要返回 Markdown。"
+                            "只负责选择工具和填写普通参数。"
+                            "标记为 generated_by_model=true 的参数"
+                            "不要在本次 JSON 中生成具体内容。"
+                            "系统会在工具执行前单独生成这些参数。"
+                            "如果 current_step 要求打开本地 HTML 文件，"
+                            f"browser_open 的 url 必须使用 file://"
+                            f"{settings.sandbox_workspace_dir.rstrip('/')}/<相对路径>；"
+                            f"没有明确文件名时默认使用 file://"
+                            f"{settings.sandbox_workspace_dir.rstrip('/')}/index.html。"
+                            "本地文件不能使用 https:// 或 http://。"
                             "JSON 格式："
                             '{"tool_name":"工具名","arguments":{},"observable_summary":"给用户看的简短说明"}'
                             "\n\n可用工具：\n"
@@ -147,7 +189,12 @@ class ModelToolSelectionService:
             )
             payload = json.loads(self._strip_code_fence(result.content))
 
-        except (AppException, json.JSONDecodeError, TypeError, ValueError):
+        except (AppException, json.JSONDecodeError, TypeError, ValueError) as error:
+            logger.warning(
+                "tool selection response could not be parsed: %s",
+                error,
+            )
+
             return None
 
         if not isinstance(payload, dict):
@@ -156,6 +203,11 @@ class ModelToolSelectionService:
         arguments = payload.get("arguments")
         if not tool_name or not isinstance(arguments, dict):
             return None
+
+        logger.info(
+            "LLM selected tool=%s",
+            tool_name,
+        )
 
         try:
             self.registry.get(tool_name)
@@ -298,6 +350,12 @@ class ModelToolSelectionService:
                 repaired[parameter.name] = "mcp_echo"
             elif parameter.name == "agent_key":
                 repaired[parameter.name] = "demo_researcher"
+
+        if tool.definition.name == "browser_open":
+            repaired["url"] = self._normalize_browser_url(
+                repaired.get("url"),
+                task_text,
+            )
         return repaired
 
     def _render_tool_schemas(self) -> str:
@@ -317,6 +375,7 @@ class ModelToolSelectionService:
                 "type": parameter.type,
                 "required": parameter.required,
                 "description": parameter.description,
+                "generated_by_model": parameter.generated_by_model
             }
             for parameter in tool.parameters
         ]
@@ -367,15 +426,16 @@ class ModelToolSelectionService:
 
     @staticmethod
     def _extract_url(text: str) -> str:
-        """从计划步骤中提取 URL，没有 URL 时使用稳定示例站点。
+        """Extract a web URL or a local workspace file URL from task text.
 
                 正则会从连续文本中提取第一个以 http/https 或 www. 开头的地址，并在
                 中文标点、空白等边界停止。例如“访问 https://www.baidu.com，等待加载”
                 会正确提取为 ``https://www.baidu.com``，不会把“等待加载”拼进域名。
                 ``www.baidu.com`` 这类无协议地址会补为 ``https://www.baidu.com``。
 
-                计划没有明确 URL 时，会回退到 ``https://example.com``，以保证
-                ``browser_open`` 的必填 ``url`` 参数始终存在。
+                如果任务要求打开本地 HTML 文件，返回 Sandbox workspace 对应的
+                ``file://<workspace>/...`` URL。只有普通网页任务没有 URL 时，才会
+                回退到 ``https://example.com``。
 
                 后续可让 LLM 在步骤 payload 中直接输出 url 字段，避免依赖字符串解析。
                 """
@@ -394,7 +454,81 @@ class ModelToolSelectionService:
             parsed = urlparse(normalized_url)
             if parsed.scheme in {"http", "https"} and parsed.netloc:
                 return normalized_url
+
+        local_path = _LOCAL_HTML_PATTERN.search(text)
+        if local_path:
+            return ModelToolSelectionService._to_workspace_file_url(
+                local_path.group()
+            )
+
+        if ModelToolSelectionService._needs_local_html(text):
+            return ModelToolSelectionService._to_workspace_file_url("index.html")
+
         return "https://example.com"
+
+    @staticmethod
+    def _normalize_browser_url(value: Any, task_text: str) -> str:
+        """Normalize browser_open arguments for remote and local pages."""
+
+        if isinstance(value, str) and value.strip():
+            clean_value = value.strip()
+            if clean_value.startswith(("http://", "https://")):
+                return clean_value
+
+            if clean_value.startswith("file://"):
+                file_path = unquote(urlparse(clean_value).path)
+                return ModelToolSelectionService._to_workspace_file_url(file_path)
+
+            if (
+                    clean_value.lower().endswith((".html", ".htm", ".xhtml"))
+                    or ModelToolSelectionService._needs_local_html(task_text)
+            ):
+                return ModelToolSelectionService._to_workspace_file_url(clean_value)
+
+            return (
+                clean_value
+                if clean_value.lower().startswith("www.")
+                else f"https://{clean_value}"
+            )
+
+        return ModelToolSelectionService._extract_url(task_text)
+
+    @staticmethod
+    def _to_workspace_file_url(path: str) -> str:
+        clean_path = path.strip().replace("\\", "/")
+        if clean_path.startswith("file://"):
+            return clean_path
+
+        workspace_dir = settings.sandbox_workspace_dir.rstrip("/") or "/"
+        if clean_path.startswith(f"{workspace_dir}/"):
+            relative_path = clean_path[len(workspace_dir) + 1:]
+        elif clean_path.startswith("/workspace/"):
+            # 兼容模型仍返回默认工作区路径的情况；最终 URL 使用当前配置。
+            relative_path = clean_path[len("/workspace/"):]
+        else:
+            relative_path = clean_path.lstrip("/")
+
+        relative_path = relative_path or "index.html"
+        encoded_path = quote(relative_path, safe="/._-")
+        return f"file://{workspace_dir}/{encoded_path}"
+
+    @staticmethod
+    def _needs_local_html(text: str) -> bool:
+        lowered = text.lower()
+        return any(
+            keyword in lowered
+            for keyword in (
+                "本地文件",
+                "本地网页",
+                "本地页面",
+                "本地 html",
+                "本地html",
+                "html 文件",
+                "html文件",
+                "html 页面",
+                "html页面",
+            )
+        )
 
     @staticmethod
     def _extract_search_query(text: str) -> str:

@@ -1,5 +1,7 @@
 import base64
 from dataclasses import dataclass
+from pathlib import Path
+from urllib.parse import unquote, urlparse
 
 from playwright.async_api import (
     Playwright, Browser, BrowserContext,
@@ -176,7 +178,8 @@ class SandboxBrowserService:
             page_title=await self._safe_title(runtime.page),
         )
 
-    async def _safe_title(self, page: Page | None) -> str | None:
+    @staticmethod
+    async def _safe_title(page: Page | None) -> str | None:
         if page is None:
             return None
 
@@ -189,4 +192,32 @@ class SandboxBrowserService:
         clean_value = url.strip()
         if clean_value.startswith(("http://", "https://")):
             return clean_value
+
+        workspace = Path(self.settings.workspace_dir).resolve()
+
+        if clean_value.startswith("file://"):
+            parsed = urlparse(clean_value)
+            if parsed.netloc not in {"", "localhost"}:
+                raise SandboxException(message="file URL host is not allowed")
+
+            target = Path(unquote(parsed.path)).resolve()
+            self._ensure_workspace_file(target, workspace)
+            return target.as_uri()
+
+        # Relative local paths are resolved against the configured workspace.
+        # This keeps browser navigation aligned with the file and shell APIs.
+        if (
+            clean_value.endswith((".html", ".htm", ".xhtml"))
+            or "/" in clean_value
+            or clean_value.startswith(".")
+        ):
+            target = (workspace / clean_value).resolve()
+            self._ensure_workspace_file(target, workspace)
+            return target.as_uri()
+
         return f"http://{clean_value}"
+
+    @staticmethod
+    def _ensure_workspace_file(target: Path, workspace: Path) -> None:
+        if target != workspace and workspace not in target.parents:
+            raise SandboxException(message="file URL escapes workspace")

@@ -21,6 +21,8 @@ class ToolParameter:
 
     required: bool = True
 
+    generated_by_model: bool = False  # 通过参数判断哪些内容需要大模型额外进行生成
+
 
 # 定义工具描述结构
 @dataclass(slots=True)

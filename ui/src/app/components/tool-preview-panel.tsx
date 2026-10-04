@@ -172,7 +172,7 @@ function ToolCallView({
       <div>
         <h3 className="text-sm font-semibold text-zinc-200">最近工具调用</h3>
         <div className="mt-2 grid gap-2">
-          {toolEvents.slice(0, 5).map((event) => (
+          {toolEvents.slice(0, 10).map((event) => (
             <ToolCallSummary event={event} key={event.id} onExpand={onExpand} />
           ))}
         </div>

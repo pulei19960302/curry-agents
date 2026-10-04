@@ -70,6 +70,9 @@ class Settings(BaseSettings):
     # 沙箱容器api相关
     sandbox_api_base_url: str = "http://localhost:8100/api"
     sandbox_api_timeout_seconds: float = 10.0
+    # 必须与 Sandbox 的 WORKSPACE_DIR 使用同一个 SANDBOX_WORKSPACE_DIR 配置。
+    # browser_open 需要把工作区相对路径转换为 file:// 绝对 URL。
+    sandbox_workspace_dir: str = "/workspace"
 
     sandbox_shell_wait_timeout_seconds: float = 10.0
 

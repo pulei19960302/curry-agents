@@ -48,7 +48,12 @@ def register_sandbox_browser_tools(
                     ToolParameter(
                         name="url",
                         type="string",
-                        description="要打开的网页地址，例如 https://example.com。",
+                        description=(
+                            "要打开的地址。公网网页使用 https://；"
+                            "Sandbox 本地 HTML 文件必须使用 "
+                            f"file://{settings.sandbox_workspace_dir.rstrip('/')}/<相对路径>，"
+                            f"例如 file://{settings.sandbox_workspace_dir.rstrip('/')}/index.html。"
+                        ),
                     )
                 ],
             ),
