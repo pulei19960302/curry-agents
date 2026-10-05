@@ -119,7 +119,7 @@ function SecurityCheckCard({ item }: { item: SecurityCheckItem }) {
   );
 }
 
-// ：把风险等级转换成稳定的视觉提示
+//把风险等级转换成稳定的视觉提示
 function SeverityBadge({ severity }: { severity: SecurityCheckItem["severity"] }) {
   if (severity === "risk") {
     return (

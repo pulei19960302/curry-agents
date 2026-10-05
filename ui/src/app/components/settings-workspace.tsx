@@ -12,6 +12,7 @@ import MemorySettingsPanel from "@/components/memory-settings-panel";
 import HarnessPanel from "@/components/harness-panel";
 import ObservabilityPanel from "@/components/observability-panel";
 import SecurityPanel from "@/components/security-panel";
+import ProductAcceptancePanel from "@/components/product-acceptance-panel";
 
 type SettingsWorkspaceProps = {
   onCreateIntegration: (payload: {
@@ -33,7 +34,7 @@ export type IntegrationDraft = {
   endpoint: string;
 };
 
-// ===================== 第1步：展示真实设置工作台 =====================
+// 展示真实设置工作台
 export default function SettingsWorkspace({
   onCreateIntegration,
   onDeleteIntegration,
@@ -108,6 +109,7 @@ function SettingsReadyView({
 
       <MemorySettingsPanel />
       <HarnessPanel />
+      <ProductAcceptancePanel />
       <ObservabilityPanel />
       <SecurityPanel />
 
