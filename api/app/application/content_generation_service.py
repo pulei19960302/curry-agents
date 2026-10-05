@@ -90,6 +90,11 @@ class ContentGenerationService:
                 status_code=502,
             )
 
+        logger.info(
+            "llm result=%s",
+            content,
+        )
+
         return content
 
     @staticmethod

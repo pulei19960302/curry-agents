@@ -1,9 +1,10 @@
 """OpenAI-compatible HTTP client for regular and streaming completions."""
 
-import httpx
 import json
 import logging
 from collections.abc import AsyncIterator
+
+import httpx
 
 from app.core.exceptions import AppException
 from app.core.logging import format_log_json
@@ -200,11 +201,6 @@ class OpenAICompatibleClient:
 
                     async for line in response.aiter_lines():
                         line = line.strip()
-
-                        logger.info(
-                            "llm stream line=%s",
-                            line
-                        )
 
                         if not line or not line.startswith("data:"):
                             continue
