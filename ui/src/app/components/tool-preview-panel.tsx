@@ -105,15 +105,18 @@ export default function ToolPreviewPanel({
 
   return (
     <section className="flex h-full flex-col overflow-hidden border border-white/10 bg-[#08090d] shadow-2xl shadow-black/60">
-      <div className="border-b border-white/10 bg-black/60 p-5">
+      <div className="border-b border-white/10 bg-[#0b0d14]/95 p-5">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <h2 className="flex items-center gap-2 text-base font-semibold text-zinc-50">
-              <Monitor size={17} aria-hidden="true" />
+            <div className="mb-2 text-xs font-medium tracking-[0.18em] text-zinc-600 uppercase">
+              Tool Workspace
+            </div>
+            <h2 className="flex items-center gap-2 text-lg font-semibold text-zinc-50">
+              <Monitor size={18} aria-hidden="true" />
               CurryAgent 的电脑
             </h2>
             <p className="mt-1 text-sm leading-5 text-zinc-500">
-              查看当前工具调用的参数、输出和可视化结果
+              查看工具调用、文件、浏览器、远程 Agent 和协作结果
             </p>
           </div>
           <button
@@ -172,7 +175,7 @@ function ToolCallView({
       <div>
         <h3 className="text-sm font-semibold text-zinc-200">最近工具调用</h3>
         <div className="mt-2 grid gap-2">
-          {toolEvents.slice(0, 10).map((event) => (
+          {toolEvents.slice(0, 8).map((event) => (
             <ToolCallSummary event={event} key={event.id} onExpand={onExpand} />
           ))}
         </div>
@@ -212,17 +215,17 @@ function ToolCallDetail({
   );
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04] shadow-sm">
+    <div className="overflow-hidden rounded-[24px] border border-white/10 bg-white/[0.04] shadow-sm">
       <div className="flex items-start gap-2">
         <div className="min-w-0 flex-1">
-          <div className="flex items-center justify-between gap-3 border-b border-white/10 px-4 py-3">
+          <div className="flex items-center justify-between gap-3 border-b border-white/10 bg-white/[0.025] px-4 py-3">
             <h3 className="flex min-w-0 items-center gap-2 truncate text-sm font-semibold text-zinc-50">
               <Icon className="shrink-0 text-blue-400" size={17} aria-hidden="true" />
               {toolName || "tool_called"}
             </h3>
             <div className="flex shrink-0 items-center gap-2">
               <button
-                className="inline-flex h-7 items-center gap-1 rounded-xl border border-white/10 bg-white/[0.04] px-2 text-xs font-medium text-zinc-400 hover:text-zinc-50"
+                className="inline-flex h-8 items-center gap-1 rounded-full border border-white/10 bg-white/[0.04] px-3 text-xs font-medium text-zinc-400 hover:text-zinc-50"
                 onClick={() => onExpand(event)}
                 title="展开工具详情"
                 type="button"
@@ -361,9 +364,9 @@ function ToolCallSummary({
 
 function ToolArguments({ value }: { value: unknown }) {
   return (
-    <div className="mt-3">
+    <div className="mt-3 break-all">
       <div className="mb-1 text-xs font-medium text-slate-500">调用参数</div>
-      <pre className="max-h-28 overflow-auto rounded-md bg-white p-2 text-[11px] leading-5 text-slate-600">
+      <pre className="overflow-auto rounded-md bg-white p-2 text-[11px] leading-5 text-slate-600">
         {JSON.stringify(value ?? {}, null, 2)}
       </pre>
     </div>

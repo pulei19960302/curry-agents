@@ -87,9 +87,7 @@ function getStreamErrorMessage(event: StreamEvent): string {
   const code = event.data.code;
 
   if (typeof message === "string" && message.trim()) {
-    return typeof code === "string" || typeof code === "number"
-      ? `[${code}] ${message}`
-      : message;
+    return typeof code === "string" || typeof code === "number" ? `[${code}] ${message}` : message;
   }
 
   return "任务流执行失败";

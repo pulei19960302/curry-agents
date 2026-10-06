@@ -19,7 +19,7 @@ import {
   fetchAppSettings,
   updateSettingsModule,
 } from "./lib/settings-api";
-import type { LoadState, SessionContextData, StatusBadgeView } from "@/types/sessions";
+import type { LoadState, StatusBadgeView } from "@/types/sessions";
 
 import type { VncStatusData } from "@/types/vnc";
 import type { MultiAgentRoleListData } from "@/types/mutil-agent";
@@ -296,8 +296,8 @@ export default function Home() {
   const dbBadge = getBadge(databaseStatus, "数据库正常", "数据库异常");
 
   return (
-    <main className="min-h-screen bg-[#050506] text-zinc-50">
-      <div className="grid min-h-screen grid-cols-[300px_1fr] max-lg:grid-cols-1">
+    <main className="h-screen overflow-auto bg-[#050506] text-zinc-50">
+      <div className="grid h-full min-h-0 grid-cols-[300px_1fr] max-lg:grid-cols-1">
         <AppSidebar
           actionError={workspace.actionError}
           activeView={activeView}
@@ -313,40 +313,45 @@ export default function Home() {
           title={workspace.title}
         />
 
-        <section className="agent-grid-bg flex min-w-0 flex-col">
-          <header className="flex min-h-20 items-center justify-between border-b border-white/10 bg-black/55 px-8 backdrop-blur max-sm:flex-col max-sm:items-start max-sm:gap-3 max-sm:px-4 max-sm:py-4">
-            <div>
-              <h1 className="text-2xl font-semibold tracking-normal text-zinc-50">
-                {activeView === "settings"
-                  ? "设置"
-                  : (workspace.selectedSession?.title ?? "新任务")}
-              </h1>
-              <p className="mt-2 text-sm text-zinc-500">
-                {activeView === "settings"
-                  ? "集中管理模型、工具、远程 Agent 和多 Agent 配置"
-                  : "输入任务后，CurryAgent 会自动规划、执行并展示过程"}
-              </p>
-            </div>
-            <div className="flex gap-2 max-sm:flex-wrap">
-              <StatusBadge badge={apiBadge} />
-              <StatusBadge badge={dbBadge} />
-            </div>
-          </header>
+        <section className="agent-grid-bg flex min-h-0 min-w-0 flex-col overflow-auto bg-[#05060a]">
+          {activeView === "settings" ? (
+            <header className="flex min-h-24 items-center justify-between border-b border-white/10 bg-[#05060a]/80 px-8 backdrop-blur-2xl max-sm:flex-col max-sm:items-start max-sm:gap-3 max-sm:px-4 max-sm:py-4">
+              <div>
+                <div className="mb-2 text-xs font-medium tracking-[0.2em] text-blue-400/80 uppercase">
+                  Control Center
+                </div>
+                <h2 className="text-3xl font-semibold tracking-normal text-zinc-50 max-sm:text-2xl">
+                  设置
+                </h2>
+                <p className="mt-2 text-sm text-zinc-500">
+                  集中管理模型、工具、远程 Agent 和多 Agent 配置
+                </p>
+              </div>
+              <div className="flex gap-2 max-sm:flex-wrap">
+                <StatusBadge badge={apiBadge} />
+                <StatusBadge badge={dbBadge} />
+              </div>
+            </header>
+          ) : null}
 
-          <div className="min-h-0 flex-1">
-            {activeView === "workspace" ? (
+          <div
+            className={`min-h-0 flex-1 overflow-auto ${
+              activeView === "workspace" ? "p-0" : "p-5 max-md:p-3"
+            }`}
+          >
+            {activeView === "workspace" && workspace.context ? (
               <ChatWorkspace
-                context={workspace.context as LoadState<SessionContextData>}
                 attachments={workspace.attachments}
                 clearingUnread={workspace.clearingUnread}
+                context={workspace.context}
                 draft={workspace.draft}
                 events={workspace.events}
                 filePreview={workspace.filePreview}
                 messages={workspace.messages}
                 onClearUnread={workspace.clearUnread}
                 onDraftChange={workspace.setDraft}
-                onRefreshContext={refreshContext}
                 onPreviewFile={workspace.loadFilePreview}
+                onRefreshContext={refreshContext}
                 onSend={workspace.sendMessage}
                 onSelectFile={workspace.selectFile}
                 onStop={workspace.stopSession}

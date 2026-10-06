@@ -1,5 +1,8 @@
 FROM node:24-alpine AS base
 
+ENV HOSTNAME=0.0.0.0
+ENV PORT=3000
+
 WORKDIR /app
 
 ARG NPM_REGISTRY=https://registry.npmmirror.com

@@ -1,4 +1,4 @@
-import { Bot, MessageSquare, Plus, RefreshCw, Settings } from "lucide-react";
+import { Bot, Plus, RefreshCw, Settings } from "lucide-react";
 
 import SessionList from "./session-list";
 import type { LoadState, SessionItem } from "@/types/sessions";
@@ -33,8 +33,8 @@ export default function AppSidebar({
   onTitleChange,
 }: AppSidebarProps) {
   return (
-    <aside className="overflow-auto border-r border-white/10 bg-black px-4 py-5 max-lg:border-r-0 max-lg:border-b">
-      <div className="flex items-center gap-3 px-2">
+    <aside className="flex h-screen min-h-0 flex-col overflow-hidden border-r border-white/10 bg-black px-4 py-5 max-lg:h-auto max-lg:max-h-[46vh] max-lg:border-r-0 max-lg:border-b">
+      <div className="flex shrink-0 items-center gap-3 px-2">
         <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-blue-500/30 bg-blue-500/15 text-blue-400">
           <Bot size={22} aria-hidden="true" />
         </div>
@@ -44,23 +44,34 @@ export default function AppSidebar({
         </div>
       </div>
 
-      <nav className="mt-6 grid gap-2">
-        <SidebarNavButton
-          active={activeView === "workspace"}
-          icon={MessageSquare}
-          label="工作台"
+      <div className="mt-4 flex shrink-0 items-center justify-between rounded-2xl border border-white/10 bg-white/[0.035] px-3 py-2">
+        <button
+          className={`rounded-full px-3 py-1.5 text-sm font-medium transition ${
+            activeView === "workspace"
+              ? "bg-blue-500 text-white"
+              : "text-zinc-500 hover:text-zinc-100"
+          }`}
           onClick={() => onViewChange("workspace")}
-        />
-        <SidebarNavButton
-          active={activeView === "settings"}
-          icon={Settings}
-          label="设置"
+          type="button"
+        >
+          对话
+        </button>
+        <button
+          className={`flex h-8 w-8 items-center justify-center rounded-full transition ${
+            activeView === "settings"
+              ? "bg-white/15 text-zinc-50"
+              : "text-zinc-600 hover:bg-white/10 hover:text-zinc-100"
+          }`}
           onClick={() => onViewChange("settings")}
-        />
-      </nav>
+          title="设置"
+          type="button"
+        >
+          <Settings size={18} aria-hidden="true" />
+        </button>
+      </div>
 
       <form
-        className="mt-6 rounded-2xl border border-white/10 bg-white/[0.04] p-3"
+        className="mt-4 shrink-0 rounded-2xl border border-white/10 bg-white/[0.04] p-3"
         onSubmit={(event) => {
           event.preventDefault();
           onCreateSession();
@@ -89,9 +100,8 @@ export default function AppSidebar({
         </div>
       </form>
 
-      <div className="mt-6 flex items-center justify-between">
+      <div className="mt-6 flex shrink-0 items-center justify-between">
         <div className="flex items-center gap-2 text-sm font-semibold text-zinc-200">
-          <MessageSquare size={17} aria-hidden="true" />
           <span>任务列表</span>
         </div>
         <button
@@ -112,37 +122,10 @@ export default function AppSidebar({
       />
 
       {actionError ? (
-        <div className="mt-4 rounded-md border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-sm text-rose-200">
+        <div className="mt-4 shrink-0 rounded-md border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-sm text-rose-200">
           {actionError}
         </div>
       ) : null}
     </aside>
-  );
-}
-
-function SidebarNavButton({
-  active,
-  icon: Icon,
-  label,
-  onClick,
-}: {
-  active: boolean;
-  icon: typeof MessageSquare;
-  label: string;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      className={`flex h-10 items-center gap-2 rounded-md px-3 text-sm font-medium transition ${
-        active
-          ? "bg-blue-500 text-white shadow-lg shadow-blue-500/20"
-          : "text-zinc-500 hover:bg-white/10 hover:text-zinc-100"
-      }`}
-      onClick={onClick}
-      type="button"
-    >
-      <Icon size={16} aria-hidden="true" />
-      {label}
-    </button>
   );
 }

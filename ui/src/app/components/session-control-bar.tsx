@@ -23,44 +23,43 @@ export default function SessionControlBar({
   const hasUnread = Boolean(selectedSession && selectedSession.unread_count > 0);
 
   return (
-    <div className="flex items-center justify-between border-b border-white/10 bg-black/20 px-8 py-4 backdrop-blur max-sm:flex-col max-sm:items-start max-sm:gap-3">
-      <div>
-        <div className="text-sm font-medium text-zinc-100">
-          {selectedSession ? selectedSession.title : "未选择会话"}
+    <div className="flex h-16 shrink-0 items-center justify-between bg-transparent px-8 backdrop-blur-2xl max-sm:h-auto max-sm:flex-col max-sm:items-start max-sm:gap-3 max-sm:py-4">
+      <div className="min-w-0">
+        <div className="truncate text-xl font-semibold text-zinc-50">
+          {selectedSession ? selectedSession.title : "新任务"}
         </div>
-        <div className="mt-1 text-xs text-zinc-500">
-          状态：{selectedSession?.status ?? "-"} · 未读：
-          {selectedSession?.unread_count ?? 0}
-        </div>
+        <p className="mt-1 text-sm text-zinc-600">
+          {isRunning ? "正在执行任务" : "描述任务后，Agent 会自动规划并执行"}
+        </p>
       </div>
 
-      <div className="flex gap-2">
+      <div className="flex flex-wrap gap-2">
         <button
-          className="flex h-9 items-center gap-2 rounded-md border border-white/10 px-3 text-sm text-zinc-400 transition hover:bg-white/10 hover:text-zinc-100 disabled:cursor-not-allowed disabled:text-zinc-700"
+          className="flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-white/[0.03] text-zinc-500 transition hover:bg-white/10 hover:text-zinc-100 disabled:cursor-not-allowed disabled:text-zinc-800"
           disabled={!selectedSession}
           onClick={onOpenContext}
+          title="查看上下文"
           type="button"
         >
           <BrainCircuit size={15} aria-hidden="true" />
-          上下文
         </button>
         <button
-          className="flex h-9 items-center gap-2 rounded-md border border-white/10 px-3 text-sm text-zinc-400 transition hover:bg-white/10 hover:text-zinc-100 disabled:cursor-not-allowed disabled:text-zinc-700"
+          className="flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-white/[0.03] text-zinc-500 transition hover:bg-white/10 hover:text-zinc-100 disabled:cursor-not-allowed disabled:text-zinc-800"
           disabled={!selectedSession || !hasUnread || clearingUnread}
           onClick={onClearUnread}
+          title="清除未读"
           type="button"
         >
           <BellOff size={15} aria-hidden="true" />
-          清未读
         </button>
         <button
-          className="flex h-9 items-center gap-2 rounded-md border border-rose-500/30 px-3 text-sm text-rose-300 transition hover:bg-rose-500/10 disabled:cursor-not-allowed disabled:text-zinc-700"
+          className="flex h-9 w-9 items-center justify-center rounded-full border border-rose-500/30 bg-rose-500/5 text-rose-300 transition hover:bg-rose-500/10 disabled:cursor-not-allowed disabled:border-white/10 disabled:bg-white/[0.03] disabled:text-zinc-800"
           disabled={!selectedSession || !isRunning || stopping}
           onClick={onStop}
+          title="停止任务"
           type="button"
         >
           <Square size={14} aria-hidden="true" />
-          停止
         </button>
       </div>
     </div>
