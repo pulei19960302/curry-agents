@@ -3,7 +3,7 @@ import { useState } from "react";
 import type { FilePreviewData } from "@/types/files";
 import type { AgentPlan } from "@/types/planner";
 import SessionControlBar from "@/components/session-control-bar";
-import ConversationTimeline from "@/components/conversation-timeline";
+import ConversationTimeline from "@/components/conversation/index";
 import AttachmentUpload from "@/components/attachment-upload";
 import AttachmentList from "@/components/attachment-list";
 import ChatInput from "@/components/chat-input";

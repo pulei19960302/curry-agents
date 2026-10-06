@@ -1,5 +1,7 @@
 import { BellOff, BrainCircuit, Square } from "lucide-react";
 
+import { workspaceButton } from "@/lib/design-tokens";
+
 import type { SessionItem } from "@/types/sessions";
 
 type SessionControlBarProps = {
@@ -35,7 +37,7 @@ export default function SessionControlBar({
 
       <div className="flex flex-wrap gap-2">
         <button
-          className="flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-white/[0.03] text-zinc-500 transition hover:bg-white/10 hover:text-zinc-100 disabled:cursor-not-allowed disabled:text-zinc-800"
+          className={workspaceButton.icon}
           disabled={!selectedSession}
           onClick={onOpenContext}
           title="查看上下文"
@@ -44,7 +46,7 @@ export default function SessionControlBar({
           <BrainCircuit size={15} aria-hidden="true" />
         </button>
         <button
-          className="flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-white/[0.03] text-zinc-500 transition hover:bg-white/10 hover:text-zinc-100 disabled:cursor-not-allowed disabled:text-zinc-800"
+          className={workspaceButton.icon}
           disabled={!selectedSession || !hasUnread || clearingUnread}
           onClick={onClearUnread}
           title="清除未读"

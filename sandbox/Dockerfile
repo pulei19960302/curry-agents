@@ -6,8 +6,8 @@ ENV UV_COMPILE_BYTECODE=1
 ENV UV_LINK_MODE=copy
 
 ENV APT_OPTS="-o Acquire::Retries=5 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 -o Acquire::ForceIPv4=true"
-ARG APT_MIRROR=http://mirrors.aliyun.com/debian
-ARG APT_SECURITY_MIRROR=http://mirrors.aliyun.com/debian-security
+ARG APT_MIRROR=https://mirrors.tuna.tsinghua.edu.cn/debian
+ARG APT_SECURITY_MIRROR=https://mirrors.tuna.tsinghua.edu.cn/debian-security
 
 WORKDIR /app
 

@@ -1,6 +1,9 @@
 import { Bot, Plus, RefreshCw, Settings } from "lucide-react";
 
 import SessionList from "./session-list";
+
+import { workspaceButton, workspaceSurface } from "@/lib/design-tokens";
+
 import type { LoadState, SessionItem } from "@/types/sessions";
 
 type AppSidebarProps = {
@@ -43,8 +46,9 @@ export default function AppSidebar({
           <div className="mt-1 text-xs text-zinc-500">Agent Workspace</div>
         </div>
       </div>
-
-      <div className="mt-4 flex shrink-0 items-center justify-between rounded-2xl border border-white/10 bg-white/[0.035] px-3 py-2">
+      <div
+        className={`mt-5 flex shrink-0 items-center justify-between rounded-2xl px-3 py-2 ${workspaceSurface.panel}`}
+      >
         <button
           className={`rounded-full px-3 py-1.5 text-sm font-medium transition ${
             activeView === "workspace"
@@ -90,7 +94,7 @@ export default function AppSidebar({
             value={title}
           />
           <button
-            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-500 text-white transition hover:bg-blue-400 disabled:cursor-not-allowed disabled:bg-zinc-800 disabled:text-zinc-500"
+            className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${workspaceButton.primary}`}
             disabled={submitting}
             title="创建会话"
             type="submit"

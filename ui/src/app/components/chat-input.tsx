@@ -1,4 +1,5 @@
 import { Loader2, Pause, SendHorizontal } from "lucide-react";
+import { workspaceSurface } from "@/lib/design-tokens";
 
 export type ChatInputProps = {
   disabled: boolean;
@@ -23,7 +24,7 @@ export default function ChatInput({
         onSend();
       }}
     >
-      <div className="rounded-[28px] border border-white/10 bg-[#07080d]/95 p-4 shadow-2xl ring-1 shadow-black/40 ring-blue-500/15">
+      <div className={`rounded-[28px] p-4 ring-1 ring-blue-500/15 ${workspaceSurface.panelStrong}`}>
         <textarea
           className="max-h-40 min-h-24 w-full resize-none border-0 bg-transparent px-2 py-2 text-lg leading-8 font-medium text-zinc-100 outline-none placeholder:text-zinc-600 disabled:bg-transparent"
           disabled={disabled || sending}
