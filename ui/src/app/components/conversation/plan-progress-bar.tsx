@@ -67,7 +67,7 @@ export default function PlanProgressBar({ progress }: PlanProgressBarProps) {
                   <div className="truncate font-medium text-zinc-200">
                     {index + 1}. {step.title}
                   </div>
-                  <div className="mt-1 line-clamp-2 text-xs leading-5 text-zinc-500">
+                  <div className="mt-1 line-clamp-2 text-xs leading-5 break-all text-zinc-500">
                     {step.summary || step.expected_output || step.description}
                   </div>
                 </div>

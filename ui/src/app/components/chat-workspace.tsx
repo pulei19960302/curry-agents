@@ -193,7 +193,7 @@ export default function ChatWorkspace({
 
       {hasToolPreview ? (
         <aside
-          aria-label="工具预览工作区"
+          aria-label="当前工具详情工作区"
           className="relative z-20 h-full w-[600px] shrink-0 border-l border-white/10 bg-[#07080d]/95 py-2 pr-2 shadow-2xl shadow-black/40 max-xl:absolute max-xl:inset-x-3 max-xl:bottom-3 max-xl:h-[70dvh] max-xl:w-auto max-xl:rounded-3xl max-xl:border max-xl:p-2"
         >
           <ToolPreviewPanel

@@ -88,7 +88,7 @@ export default function StepCard({
               </h4>
               <Maximize2 className="shrink-0 text-zinc-600" size={14} aria-hidden="true" />
             </div>
-            <p className="mt-2 line-clamp-2 text-sm leading-6 text-zinc-400">
+            <p className="mt-2 line-clamp-2 text-sm leading-6 break-all text-zinc-400">
               {running
                 ? getRunningCopy(step)
                 : completed

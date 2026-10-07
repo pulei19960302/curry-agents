@@ -107,9 +107,23 @@ export default function ToolPreviewPanel({
   selectedToolEventId,
 }: ToolPreviewPanelProps) {
   const [expandedEvent, setExpandedEvent] = useState<SessionEventItem | null>(null);
+
+  // 事件列表中既有 message_created、plan_created、step_started，
+  // 也有 tool_called。右侧工具详情只关心 tool_called。
   const toolEvents = useMemo(() => getToolEvents(events), [events]);
+
+  // 根据中间对话流点击的事件 ID 找到当前工具 =====================
+  // selectedToolEventId 来自 ConversationTimeline 的工具节点点击事件。
   const selectedToolEvent = toolEvents.find((event) => event.id === selectedToolEventId) ?? null;
-  const latestToolEvent = selectedToolEvent ?? toolEvents[0] ?? null;
+
+  // ===================== 第3步：准备标题和工具类型 =====================
+  // 正常情况下，右侧只会在有 selectedToolEventId 时打开。
+  // 这里保留一个 latest fallback，是为了防止极端状态下右侧出现空白。
+  const activeToolEvent = selectedToolEvent ?? toolEvents[0] ?? null;
+  const activeToolName = parseString(activeToolEvent?.payload.tool_name);
+  const activeToolKind = activeToolEvent
+    ? getToolKind(activeToolName, parseString(activeToolEvent.payload.output))
+    : "Tool";
 
   return (
     <section className="flex h-full flex-col overflow-hidden border border-white/10 bg-[#08090d] shadow-2xl shadow-black/60">
@@ -141,10 +155,9 @@ export default function ToolPreviewPanel({
       <div className="flex-1 overflow-auto bg-[#08090d] p-4">
         <ToolCallView
           events={events}
-          latestToolEvent={latestToolEvent}
           onExpand={setExpandedEvent}
           onRefreshVnc={onRefreshVnc}
-          toolEvents={toolEvents}
+          toolEvent={activeToolEvent}
           vnc={vnc}
         />
       </div>
@@ -158,17 +171,15 @@ export default function ToolPreviewPanel({
 
 function ToolCallView({
   events,
-  latestToolEvent,
   onExpand,
   onRefreshVnc,
-  toolEvents,
+  toolEvent,
   vnc,
 }: {
   events: LoadState<SessionEventItem[]>;
-  latestToolEvent: SessionEventItem | null;
   onExpand: (event: SessionEventItem) => void;
   onRefreshVnc: () => void;
-  toolEvents: SessionEventItem[];
+  toolEvent: SessionEventItem | null;
   vnc: LoadState<VncStatusData>;
 }) {
   if (events.type === "loading") {
@@ -179,24 +190,30 @@ function ToolCallView({
     return <p className="text-sm text-rose-600">{events.message}</p>;
   }
 
-  if (!latestToolEvent) {
-    return <EmptyState icon={Bot} text="发送任务后，工具调用会显示在这里。" />;
+  if (!toolEvent) {
+    return <EmptyState icon={Bot} text="点击对话流里的工具节点查看详情。" />;
   }
+
+  const toolName = parseString(toolEvent.payload.tool_name);
+  const isBrowserTool = toolName.startsWith("browser_");
 
   return (
     <div className="grid gap-4">
-      <ToolCallDetail event={latestToolEvent} onExpand={onExpand} />
-      {parseString(latestToolEvent.payload.tool_name).startsWith("browser_") ? (
-        <VncPanel onRefresh={onRefreshVnc} state={vnc} />
-      ) : null}
-      <div>
-        <h3 className="text-sm font-semibold text-zinc-200">最近工具调用</h3>
-        <div className="mt-2 grid gap-2">
-          {toolEvents.slice(0, 5).map((event) => (
-            <ToolCallSummary event={event} key={event.id} onExpand={onExpand} />
-          ))}
+      <ToolCallDetail event={toolEvent} onExpand={onExpand} />
+      {isBrowserTool ? (
+        <div className="grid gap-3">
+          <div className="rounded-[22px] border border-blue-500/20 bg-blue-500/[0.06] px-4 py-3">
+            <div className="flex items-center gap-2 text-sm font-semibold text-blue-100">
+              <Monitor size={16} aria-hidden="true" />
+              浏览器实时观察
+            </div>
+            <p className="mt-1 text-xs leading-5 text-blue-100/60">
+              截图是工具调用的结果，远程桌面用于持续观察 Sandbox 中的浏览器画面。
+            </p>
+          </div>
+          <VncPanel onRefresh={onRefreshVnc} state={vnc} />
         </div>
-      </div>
+      ) : null}
     </div>
   );
 }
@@ -245,6 +262,7 @@ function ToolCallDetail({
               <ToolKindBadge kind={previewKind} />
               <CopyButton value={output || JSON.stringify(event.payload, null, 2)} />
               <button
+                aria-label="展开工具详情"
                 className="inline-flex h-8 items-center gap-1 rounded-full border border-white/10 bg-white/[0.04] px-3 text-xs font-medium text-zinc-400 hover:text-zinc-50"
                 onClick={() => onExpand(event)}
                 title="展开工具详情"
@@ -303,7 +321,10 @@ function ToolResultDialog({ event, onClose }: { event: SessionEventItem; onClose
         <div className="flex items-center justify-between gap-3 border-b border-slate-200 px-5 py-4">
           <div className="min-w-0">
             <div className="flex items-center gap-2">
-              <h2 className="truncate text-base font-semibold text-slate-950">
+              <h2
+                className="truncate text-base font-semibold text-slate-950"
+                id="tool-result-title"
+              >
                 {toolName || "工具详情"}
               </h2>
               <ToolKindBadge kind={previewKind} tone="light" />
@@ -313,6 +334,7 @@ function ToolResultDialog({ event, onClose }: { event: SessionEventItem; onClose
           <div className="flex shrink-0 items-center gap-2">
             <CopyButton value={output || JSON.stringify(event.payload, null, 2)} tone="light" />
             <button
+              aria-label="关闭工具详情"
               className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-slate-200 text-slate-600 hover:bg-slate-50"
               onClick={onClose}
               title="关闭"
@@ -342,57 +364,17 @@ function ToolResultDialog({ event, onClose }: { event: SessionEventItem; onClose
               <A2aResultPreview result={a2aResult} />
             ) : multiAgentResult ? (
               <MultiAgentResultPreview result={multiAgentResult} />
+            ) : toolName.startsWith("shell_") ? (
+              <ShellOutputPreview output={output} />
+            ) : toolName.startsWith("browser_") ? (
+              <PlainToolPreview output={output} title="浏览器工具输出" />
             ) : (
-              <pre className="min-h-full rounded-md bg-slate-50 p-4 text-xs leading-5 break-words whitespace-pre-wrap text-slate-700">
-                {output || "<no output>"}
-              </pre>
+              <PlainToolPreview output={output} title="工具输出" />
             )}
           </main>
         </div>
       </div>
     </div>
-  );
-}
-
-function ToolCallSummary({
-  event,
-  onExpand,
-}: {
-  event: SessionEventItem;
-  onExpand: (event: SessionEventItem) => void;
-}) {
-  const toolName = parseString(event.payload.tool_name);
-  const output = parseString(event.payload.output);
-  const screenshot = parseScreenshot(output);
-  const searchResults = parseSearchResults(output);
-  const mcpResult = parseMcpToolResult(output);
-  const a2aResult = parseA2aTaskResult(output);
-  const multiAgentResult = parseMultiAgentResult(output);
-  const Icon = getToolIcon(
-    toolName,
-    screenshot,
-    searchResults,
-    mcpResult,
-    a2aResult,
-    multiAgentResult,
-  );
-
-  return (
-    <button
-      className="flex items-center justify-between gap-3 rounded-md border border-slate-200 bg-white px-3 py-2 text-left text-sm hover:border-slate-300 hover:bg-slate-50"
-      onClick={() => onExpand(event)}
-      title="展开这次工具调用"
-      type="button"
-    >
-      <div className="flex min-w-0 items-center gap-2">
-        <Icon className="shrink-0 text-slate-500" size={15} aria-hidden="true" />
-        <span className="truncate font-medium text-slate-800">{toolName || "tool"}</span>
-      </div>
-      <span className="inline-flex shrink-0 items-center gap-1 text-xs text-slate-500">
-        <Maximize2 size={12} aria-hidden="true" />
-        {formatDateTime(event.created_at)}
-      </span>
-    </button>
   );
 }
 
