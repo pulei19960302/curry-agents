@@ -66,7 +66,7 @@ export default function StepCard({
       </div>
 
       <div
-        className={`grid gap-3 rounded-2xl border p-1 transition ${
+        className={`grid gap-2 rounded-xl border p-1 transition ${
           highlighted
             ? "border-blue-500/35 bg-blue-500/[0.055] shadow-2xl shadow-blue-950/20"
             : "border-transparent bg-transparent hover:bg-white/[0.035]"
@@ -74,6 +74,7 @@ export default function StepCard({
       >
         <div className="flex w-full items-start justify-between gap-4 rounded-xl px-3 py-2 text-left transition outline-none">
           <button
+            aria-label={`查看步骤详情：${step.title}`}
             className="min-w-0 flex-1 text-left outline-none focus-visible:ring-2 focus-visible:ring-blue-500/60"
             onClick={() => onOpenStep(step)}
             type="button"
@@ -87,7 +88,7 @@ export default function StepCard({
               </h4>
               <Maximize2 className="shrink-0 text-zinc-600" size={14} aria-hidden="true" />
             </div>
-            <p className="mt-2 line-clamp-2 text-sm leading-6 break-all text-zinc-400">
+            <p className="mt-2 line-clamp-2 text-sm leading-6 text-zinc-400">
               {running
                 ? getRunningCopy(step)
                 : completed
@@ -98,11 +99,11 @@ export default function StepCard({
           <div className="flex shrink-0 items-center gap-2">
             <span className={getStatusClass(step.status)}>{getStatusLabel(step.status)}</span>
             <button
+              aria-label={expanded ? "折叠步骤" : "展开步骤"}
               className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] text-zinc-400 transition hover:border-blue-500/40 hover:text-zinc-100"
               onClick={() => setExpanded((value) => !value)}
               title={expanded ? "折叠步骤" : "展开步骤"}
               type="button"
-              aria-label={expanded ? "折叠步骤" : "展开步骤"}
             >
               {expanded ? (
                 <ChevronUp size={15} aria-hidden="true" />
@@ -115,25 +116,25 @@ export default function StepCard({
 
         {showToolSection ? (
           <div className="ml-3 grid max-w-3xl gap-3 border-l border-dashed border-zinc-800/90 pl-4">
-            <div className="inline-flex w-fit items-center gap-2 rounded-full border border-blue-500/20 bg-blue-500/10 px-3 py-1.5 text-sm font-semibold text-blue-200">
+            <div className="inline-flex w-fit items-center gap-2 rounded-lg border border-white/10 bg-white/[0.06] px-3 py-1.5 text-sm font-medium text-zinc-400">
               <Wrench
                 className={running ? "animate-pulse text-blue-400" : "text-blue-400"}
-                size={18}
+                size={16}
                 aria-hidden="true"
               />
               {running ? "正在使用工具" : "工具调用完成"}
             </div>
-            <div className="grid gap-3">
+            <div className="grid gap-2">
               {toolPills.map((label) => (
                 <button
-                  className="flex w-fit max-w-full items-center gap-3 rounded-2xl border border-white/10 bg-white/10 px-4 py-2.5 text-left text-base font-semibold text-zinc-400 transition hover:border-blue-500/40 hover:text-zinc-100"
+                  aria-label={`查看工具详情：${label}`}
+                  className="inline-flex w-fit max-w-full items-center gap-2 rounded-lg border border-white/10 bg-white/[0.055] px-3 py-1.5 text-left text-sm font-medium text-zinc-500 transition hover:border-blue-500/40 hover:bg-blue-500/10 hover:text-zinc-100"
                   disabled={!step.toolEvent}
                   key={label}
                   onClick={() => step.toolEvent && onSelectToolEvent(step.toolEvent.id)}
                   type="button"
-                  aria-label={`查看工具详情：${label}`}
                 >
-                  <Search className="shrink-0 text-blue-400" size={20} aria-hidden="true" />
+                  <Search className="shrink-0 text-blue-400" size={17} aria-hidden="true" />
                   <span className="truncate">{label}</span>
                 </button>
               ))}
@@ -143,14 +144,14 @@ export default function StepCard({
 
         {step.toolEvent ? (
           <button
-            className={`ml-3 w-fit rounded-full border px-4 py-2 text-sm font-medium transition ${
+            aria-label="查看工具详情"
+            className={`ml-3 w-fit rounded-lg border px-3 py-1.5 text-sm font-medium transition ${
               selectedToolEventId === step.toolEvent.id
                 ? "border-blue-400 bg-blue-500/15 text-blue-200"
                 : "border-white/10 bg-white/[0.04] text-zinc-400 hover:border-blue-500/40 hover:text-zinc-100"
             }`}
             onClick={() => onSelectToolEvent(step.toolEvent!.id)}
             type="button"
-            aria-label={`查看步骤详情：${step.title}`}
           >
             查看工具详情
           </button>

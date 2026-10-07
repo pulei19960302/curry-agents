@@ -9,6 +9,7 @@ import { parseString } from "@/utils";
 import type { SessionEventItem } from "@/types/sessions";
 import type { PlanStepView } from "@/components/conversation/types";
 import type { AgentPlan } from "@/types/planner";
+import MarkdownContent from "../markdown-content";
 
 export type AgentRunBlockProps = {
   events: SessionEventItem[];
@@ -52,7 +53,7 @@ export default function AgentRunBlock({
       </div>
       <div className="ml-4 border-l border-dashed border-zinc-800/90 pl-7">
         <button
-          className="flex w-full items-center justify-between gap-4 rounded-2xl border border-white/10 bg-[#111421]/90 px-4 py-3 text-left shadow-xl shadow-black/20 transition hover:border-blue-500/30"
+          className="flex w-full items-center justify-between gap-4 rounded-xl px-2 py-2 text-left transition hover:bg-white/[0.035]"
           onClick={() => setExpanded((value) => !value)}
           type="button"
         >
@@ -108,7 +109,7 @@ function FinalAnswer({ event, steps }: { event: SessionEventItem; steps: PlanSte
           {failed ? (
             parseString(event.payload.message) || "任务执行失败，请查看事件详情。"
           ) : firstAnswer ? (
-            <FormattedAnswer value={firstAnswer} />
+            <MarkdownContent content={firstAnswer} />
           ) : (
             "任务已完成。你可以点击步骤中的工具详情查看每次调用的输入和输出。"
           )}

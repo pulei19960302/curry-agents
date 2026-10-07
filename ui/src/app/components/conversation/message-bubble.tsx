@@ -1,5 +1,6 @@
 import { ChatMessage } from "@/types/sessions";
 import AgentAvatar from "./agent-avatar";
+import MarkdownContent from "../markdown-content";
 
 export type MessageBubbleProps = {
   message: ChatMessage;
@@ -24,9 +25,7 @@ export default function MessageBubble({ message }: MessageBubbleProps) {
       <AgentAvatar />
       <div className="max-w-4xl pt-1">
         <div className="text-base font-semibold text-blue-400">CurryAgent</div>
-        <p className="mt-3 text-base leading-8 whitespace-pre-wrap text-zinc-400">
-          {message.content}
-        </p>
+        <MarkdownContent className="mt-3" content={message.content} />
       </div>
     </div>
   );
