@@ -1,8 +1,10 @@
+"use client";
+
 import { Monitor, RefreshCcw, XCircle } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
-import type { VncStatusData } from "@/types/vnc";
 import type { LoadState } from "@/types/sessions";
+import type { VncStatusData } from "@/types/vnc";
 
 type VncPanelProps = {
   onRefresh: () => void; // 重新读取 /sandbox-api/vnc/status。
@@ -23,16 +25,19 @@ type RfbConstructor = new (target: HTMLElement, url: string) => RfbInstance;
 // ===================== 第1步：展示 Sandbox 浏览器远程桌面 =====================
 export default function VncPanel({ onRefresh, state }: VncPanelProps) {
   return (
-    <div className="rounded-md border border-slate-200 bg-white p-5">
+    <div className="rounded-[24px] border border-white/10 bg-[#08090d] p-5 shadow-2xl shadow-black/50">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <h2 className="text-base font-semibold text-slate-950">浏览器远程桌面</h2>
-          <p className="mt-1 text-sm leading-5 text-slate-500">
+          <div className="mb-2 text-xs font-medium tracking-[0.18em] text-zinc-600 uppercase">
+            Remote Desktop
+          </div>
+          <h2 className="text-base font-semibold text-zinc-50">浏览器远程桌面</h2>
+          <p className="mt-1 text-sm leading-5 text-zinc-500">
             查看 Sandbox 中有头浏览器的实时画面
           </p>
         </div>
         <button
-          className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+          className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-white/[0.04] text-zinc-400 hover:bg-white/10 hover:text-zinc-50"
           onClick={onRefresh}
           title="刷新 VNC 状态"
           type="button"
@@ -42,13 +47,13 @@ export default function VncPanel({ onRefresh, state }: VncPanelProps) {
       </div>
 
       {state.type === "loading" ? (
-        <div className="mt-4 rounded-md border border-slate-200 bg-slate-50 p-3 text-sm text-slate-500">
+        <div className="mt-4 rounded-2xl border border-white/10 bg-white/[0.04] p-3 text-sm text-zinc-500">
           正在读取远程桌面状态...
         </div>
       ) : null}
 
       {state.type === "error" ? (
-        <div className="mt-4 flex gap-2 rounded-md border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">
+        <div className="mt-4 flex gap-2 rounded-2xl border border-rose-500/30 bg-rose-500/10 p-3 text-sm text-rose-200">
           <XCircle className="mt-0.5 shrink-0" size={16} />
           <span>{state.message}</span>
         </div>
@@ -89,8 +94,10 @@ function VncReadyView({ data }: { data: VncStatusData }) {
           return;
         }
 
+        console.log(websocketUrl, "@@@ websocketUrl");
+
         // 3. 创建 noVNC RFB 实例。target 是一个普通 div，SDK 会把远程桌面画面渲染进去。
-        const rfb = new module.default(screenRef.current, websocketUrl); // 创建
+        const rfb = new module.default(screenRef.current, websocketUrl);
         rfb.scaleViewport = true;
         rfb.resizeSession = false;
         rfb.viewOnly = false;
@@ -137,7 +144,7 @@ function VncReadyView({ data }: { data: VncStatusData }) {
 
   if (!data.enabled) {
     return (
-      <div className="mt-4 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-700">
+      <div className="mt-4 rounded-2xl border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-200">
         VNC 未启用：{data.message}
       </div>
     );
@@ -145,30 +152,30 @@ function VncReadyView({ data }: { data: VncStatusData }) {
 
   return (
     <div className="mt-4 grid gap-3">
-      <div className="flex items-center gap-2 rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-700">
+      <div className="flex items-center gap-2 rounded-2xl border border-emerald-500/25 bg-emerald-500/10 p-3 text-sm text-emerald-200">
         <Monitor size={16} />
         <span>{getConnectionText(connectionState, data.message)}</span>
       </div>
       {errorMessage ? (
-        <div className="rounded-md border border-rose-200 bg-rose-50 p-3 text-xs text-rose-700">
+        <div className="rounded-2xl border border-rose-500/30 bg-rose-500/10 p-3 text-xs text-rose-200">
           {errorMessage}
         </div>
       ) : null}
-      <div className="h-[260px] overflow-hidden rounded-md border border-slate-200 bg-slate-950">
+      <div className="h-[260px] overflow-hidden rounded-2xl border border-white/10 bg-black">
         <div className="h-full w-full" ref={screenRef} />
       </div>
-      <dl className="grid gap-2 text-xs text-slate-600">
+      <dl className="grid gap-2 text-xs text-zinc-500">
         <div className="flex justify-between gap-3">
           <dt>显示器</dt>
-          <dd className="font-medium text-slate-900">{data.display}</dd>
+          <dd className="font-medium text-zinc-200">{data.display}</dd>
         </div>
         <div className="flex justify-between gap-3">
           <dt>Web 端口</dt>
-          <dd className="font-medium text-slate-900">{data.web_port}</dd>
+          <dd className="font-medium text-zinc-200">{data.web_port}</dd>
         </div>
         <div className="flex justify-between gap-3">
           <dt>WebSocket</dt>
-          <dd className="truncate font-medium text-slate-900">{data.websocket_path}</dd>
+          <dd className="truncate font-medium text-zinc-200">{data.websocket_path}</dd>
         </div>
       </dl>
     </div>

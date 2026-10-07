@@ -2,6 +2,8 @@ import { useMemo, useState } from "react";
 import {
   Bot,
   Camera,
+  Check,
+  Clipboard,
   FileText,
   FolderOpen,
   GitBranch,
@@ -20,11 +22,15 @@ import {
 import { formatDateTime } from "@/lib/format";
 import type { LoadState, SessionEventItem } from "@/types/sessions";
 import { parseString } from "@/utils";
+import VncPanel from "./vnc-panel";
+import { VncStatusData } from "@/types/vnc";
 
 type ToolPreviewPanelProps = {
   events: LoadState<SessionEventItem[]>; // 会话事件列表，用来提取最近工具调用。
   onClose: () => void; // 关闭右侧工具预览抽屉。
+  onRefreshVnc: () => void; // 刷新 Sandbox VNC 状态。
   selectedToolEventId: string | null; // 中间对话流里选中的工具调用事件。
+  vnc: LoadState<VncStatusData>; // 远程桌面状态，浏览器工具预览会复用它。
 };
 
 type ScreenshotPayload = {
@@ -92,10 +98,12 @@ type MultiAgentResultPayload = {
   final_answer: string;
 };
 
-// ===================== 第1步：统一展示工具调用、文件和沙箱观察 =====================
+// 统一展示工具调用、文件和沙箱观察
 export default function ToolPreviewPanel({
   events,
+  vnc,
   onClose,
+  onRefreshVnc,
   selectedToolEventId,
 }: ToolPreviewPanelProps) {
   const [expandedEvent, setExpandedEvent] = useState<SessionEventItem | null>(null);
@@ -135,7 +143,9 @@ export default function ToolPreviewPanel({
           events={events}
           latestToolEvent={latestToolEvent}
           onExpand={setExpandedEvent}
+          onRefreshVnc={onRefreshVnc}
           toolEvents={toolEvents}
+          vnc={vnc}
         />
       </div>
 
@@ -150,12 +160,16 @@ function ToolCallView({
   events,
   latestToolEvent,
   onExpand,
+  onRefreshVnc,
   toolEvents,
+  vnc,
 }: {
   events: LoadState<SessionEventItem[]>;
   latestToolEvent: SessionEventItem | null;
   onExpand: (event: SessionEventItem) => void;
+  onRefreshVnc: () => void;
   toolEvents: SessionEventItem[];
+  vnc: LoadState<VncStatusData>;
 }) {
   if (events.type === "loading") {
     return <EmptyState icon={RefreshCcw} text="正在读取工具事件..." />;
@@ -172,10 +186,13 @@ function ToolCallView({
   return (
     <div className="grid gap-4">
       <ToolCallDetail event={latestToolEvent} onExpand={onExpand} />
+      {parseString(latestToolEvent.payload.tool_name).startsWith("browser_") ? (
+        <VncPanel onRefresh={onRefreshVnc} state={vnc} />
+      ) : null}
       <div>
         <h3 className="text-sm font-semibold text-zinc-200">最近工具调用</h3>
         <div className="mt-2 grid gap-2">
-          {toolEvents.slice(0, 8).map((event) => (
+          {toolEvents.slice(0, 5).map((event) => (
             <ToolCallSummary event={event} key={event.id} onExpand={onExpand} />
           ))}
         </div>
@@ -195,6 +212,7 @@ function ToolCallDetail({
   //    后端所有工具结果都会先进入 session_events，再由这个面板统一展示。
   const toolName = parseString(event.payload.tool_name);
   const output = parseString(event.payload.output);
+  const previewKind = getToolKind(toolName, output);
 
   // 2. 尝试把 output 解析成不同工具的结构化结果。
   //    解析成功就用专门卡片展示，解析失败就回退为普通文本。
@@ -224,6 +242,8 @@ function ToolCallDetail({
               {toolName || "tool_called"}
             </h3>
             <div className="flex shrink-0 items-center gap-2">
+              <ToolKindBadge kind={previewKind} />
+              <CopyButton value={output || JSON.stringify(event.payload, null, 2)} />
               <button
                 className="inline-flex h-8 items-center gap-1 rounded-full border border-white/10 bg-white/[0.04] px-3 text-xs font-medium text-zinc-400 hover:text-zinc-50"
                 onClick={() => onExpand(event)}
@@ -247,10 +267,12 @@ function ToolCallDetail({
               <A2aResultPreview result={a2aResult} />
             ) : multiAgentResult ? (
               <MultiAgentResultPreview result={multiAgentResult} />
+            ) : toolName.startsWith("shell_") ? (
+              <ShellOutputPreview output={output} />
+            ) : toolName.startsWith("browser_") ? (
+              <PlainToolPreview output={output} title="浏览器工具输出" />
             ) : (
-              <pre className="max-h-72 overflow-auto rounded-xl bg-slate-950 p-4 text-xs leading-5 whitespace-pre-wrap text-slate-100">
-                {output || "<no output>"}
-              </pre>
+              <PlainToolPreview output={output} title="工具输出" />
             )}
             <ToolArguments value={event.payload.arguments} />
           </div>
@@ -268,25 +290,32 @@ function ToolResultDialog({ event, onClose }: { event: SessionEventItem; onClose
   const mcpResult = parseMcpToolResult(output);
   const a2aResult = parseA2aTaskResult(output);
   const multiAgentResult = parseMultiAgentResult(output);
+  const previewKind = getToolKind(toolName, output);
 
   return (
     <div className="fixed inset-0 z-50 bg-slate-950/55 p-6 max-sm:p-3">
       <div className="mx-auto flex h-full max-w-5xl flex-col overflow-hidden rounded-md bg-white shadow-xl">
         <div className="flex items-center justify-between gap-3 border-b border-slate-200 px-5 py-4">
           <div className="min-w-0">
-            <h2 className="truncate text-base font-semibold text-slate-950">
-              {toolName || "工具详情"}
-            </h2>
+            <div className="flex items-center gap-2">
+              <h2 className="truncate text-base font-semibold text-slate-950">
+                {toolName || "工具详情"}
+              </h2>
+              <ToolKindBadge kind={previewKind} tone="light" />
+            </div>
             <p className="mt-1 text-xs text-slate-500">{formatDateTime(event.created_at)}</p>
           </div>
-          <button
-            className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-slate-200 text-slate-600 hover:bg-slate-50"
-            onClick={onClose}
-            title="关闭"
-            type="button"
-          >
-            <X size={17} aria-hidden="true" />
-          </button>
+          <div className="flex shrink-0 items-center gap-2">
+            <CopyButton value={output || JSON.stringify(event.payload, null, 2)} tone="light" />
+            <button
+              className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-slate-200 text-slate-600 hover:bg-slate-50"
+              onClick={onClose}
+              title="关闭"
+              type="button"
+            >
+              <X size={17} aria-hidden="true" />
+            </button>
+          </div>
         </div>
 
         <div className="grid flex-1 grid-cols-[320px_1fr] overflow-hidden max-lg:grid-cols-1">
@@ -371,6 +400,43 @@ function ToolArguments({ value }: { value: unknown }) {
       </pre>
     </div>
   );
+}
+
+function CopyButton({ tone = "dark", value }: { tone?: "dark" | "light"; value: string }) {
+  const [copied, setCopied] = useState(false);
+  async function copyValue() {
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1400);
+    } catch {
+      setCopied(false);
+    }
+  }
+
+  return (
+    <button
+      className={
+        tone === "light"
+          ? "inline-flex h-9 items-center gap-1 rounded-md border border-slate-200 px-3 text-xs font-medium text-slate-600 hover:bg-slate-50"
+          : "inline-flex h-8 items-center gap-1 rounded-full border border-white/10 bg-white/[0.04] px-3 text-xs font-medium text-zinc-400 hover:text-zinc-50"
+      }
+      onClick={copyValue}
+      title="复制工具输出"
+      type="button"
+    >
+      {copied ? <Check size={14} aria-hidden="true" /> : <Clipboard size={14} aria-hidden="true" />}
+      {copied ? "已复制" : "复制"}
+    </button>
+  );
+}
+
+function ToolKindBadge({ kind, tone = "dark" }: { kind: string; tone?: "dark" | "light" }) {
+  const className =
+    tone === "light"
+      ? "rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] font-semibold text-slate-600"
+      : "rounded-full border border-blue-500/25 bg-blue-500/10 px-2 py-0.5 text-[11px] font-semibold text-blue-200";
+  return <span className={className}>{kind}</span>;
 }
 
 function ScreenshotPreview({ screenshot }: { screenshot: ScreenshotPayload }) {
@@ -539,6 +605,51 @@ function EmptyState({ icon: Icon, text }: { icon: typeof Bot; text: string }) {
     <div className="flex items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-500">
       <Icon size={16} aria-hidden="true" />
       <span>{text}</span>
+    </div>
+  );
+}
+
+function PlainToolPreview({ output, title }: { output: string; title: string }) {
+  return (
+    <div className="rounded-xl border border-white/10 bg-black/30">
+      <div className="border-b border-white/10 px-3 py-2 text-xs font-semibold text-zinc-400">
+        {title}
+      </div>
+      <pre className="max-h-72 overflow-auto p-4 text-xs leading-5 break-words whitespace-pre-wrap text-zinc-200">
+        {output || "<no output>"}
+      </pre>
+    </div>
+  );
+}
+
+function ShellOutputPreview({ output }: { output: string }) {
+  const failed = /退出码：([1-9]\d*)/.test(output) || /状态：(failed|error)/i.test(output);
+  return (
+    <div
+      className={`rounded-xl border ${
+        failed ? "border-rose-500/30 bg-rose-500/10" : "border-emerald-500/20 bg-emerald-500/[0.06]"
+      }`}
+    >
+      <div className="flex items-center justify-between gap-3 border-b border-white/10 px-3 py-2">
+        <div className="flex items-center gap-2 text-xs font-semibold text-zinc-200">
+          <Terminal
+            className={failed ? "text-rose-300" : "text-emerald-300"}
+            size={15}
+            aria-hidden="true"
+          />
+          Shell 输出
+        </div>
+        <span
+          className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+            failed ? "bg-rose-500/15 text-rose-200" : "bg-emerald-500/15 text-emerald-200"
+          }`}
+        >
+          {failed ? "error" : "ok"}
+        </span>
+      </div>
+      <pre className="max-h-80 overflow-auto p-4 font-mono text-xs leading-6 break-words whitespace-pre-wrap text-zinc-100">
+        {output || "<no output>"}
+      </pre>
     </div>
   );
 }
@@ -770,4 +881,32 @@ function parseMultiAgentResult(value: string): MultiAgentResultPayload | null {
     return null;
   }
   return null;
+}
+
+function getToolKind(toolName: string, output: string) {
+  if (parseScreenshot(output)) {
+    return "Browser Screenshot";
+  }
+  if (parseSearchResults(output) || toolName.startsWith("search_")) {
+    return "Search";
+  }
+  if (parseMcpToolResult(output) || toolName.startsWith("mcp_")) {
+    return "MCP";
+  }
+  if (parseA2aTaskResult(output) || toolName.startsWith("a2a_")) {
+    return "A2A";
+  }
+  if (parseMultiAgentResult(output) || toolName.startsWith("multi_agent_")) {
+    return "Multi-Agent";
+  }
+  if (toolName.startsWith("browser_")) {
+    return "Browser";
+  }
+  if (toolName.startsWith("shell_")) {
+    return "Shell";
+  }
+  if (toolName.startsWith("file_")) {
+    return "File";
+  }
+  return "Tool";
 }

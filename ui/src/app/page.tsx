@@ -19,15 +19,15 @@ import {
   fetchAppSettings,
   updateSettingsModule,
 } from "./lib/settings-api";
-import type { LoadState, StatusBadgeView } from "@/types/sessions";
 
-import type { VncStatusData } from "@/types/vnc";
+import type { LoadState, StatusBadgeView } from "@/types/sessions";
+import type { A2aAgentCardData, A2aRemoteAgentListData, A2aConceptsData } from "@/types/a2a";
+import type { McpServerListData, McpToolListData } from "@/types/mcp";
 import type { MultiAgentRoleListData } from "@/types/mutil-agent";
 import type { SandboxInstanceData } from "@/types/sandbox";
-import type { ApiStatusData, DatabaseStatusData } from "@/types/api";
-import type { McpServerListData, McpToolListData } from "@/types/mcp";
-import type { A2aAgentCardData, A2aConceptsData, A2aRemoteAgentListData } from "@/types/a2a";
-import { AppSettingsData } from "@/types/setting";
+import type { VncStatusData } from "@/types/vnc";
+import type { ApiStatusData, DatabaseStatusData } from "./types/api";
+import { AppSettingsData } from "./types/setting";
 
 export default function Home() {
   const [activeView, setActiveView] = useState<"workspace" | "settings">("workspace");
@@ -296,7 +296,7 @@ export default function Home() {
   const dbBadge = getBadge(databaseStatus, "数据库正常", "数据库异常");
 
   return (
-    <main className="h-screen overflow-auto bg-[#050506] text-zinc-50">
+    <main className="h-screen overflow-hidden bg-[#050506] text-zinc-50">
       <div className="grid h-full min-h-0 grid-cols-[300px_1fr] max-lg:grid-cols-1">
         <AppSidebar
           actionError={workspace.actionError}
@@ -313,16 +313,16 @@ export default function Home() {
           title={workspace.title}
         />
 
-        <section className="agent-grid-bg flex min-h-0 min-w-0 flex-col overflow-auto bg-[#05060a]">
+        <section className="agent-grid-bg flex min-h-0 min-w-0 flex-col overflow-hidden bg-[#05060a]">
           {activeView === "settings" ? (
             <header className="flex min-h-24 items-center justify-between border-b border-white/10 bg-[#05060a]/80 px-8 backdrop-blur-2xl max-sm:flex-col max-sm:items-start max-sm:gap-3 max-sm:px-4 max-sm:py-4">
               <div>
                 <div className="mb-2 text-xs font-medium tracking-[0.2em] text-blue-400/80 uppercase">
                   Control Center
                 </div>
-                <h2 className="text-3xl font-semibold tracking-normal text-zinc-50 max-sm:text-2xl">
+                <h1 className="text-3xl font-semibold tracking-normal text-zinc-50 max-sm:text-2xl">
                   设置
-                </h2>
+                </h1>
                 <p className="mt-2 text-sm text-zinc-500">
                   集中管理模型、工具、远程 Agent 和多 Agent 配置
                 </p>
@@ -335,23 +335,32 @@ export default function Home() {
           ) : null}
 
           <div
-            className={`min-h-0 flex-1 overflow-auto ${
+            className={`min-h-0 flex-1 overflow-hidden ${
               activeView === "workspace" ? "p-0" : "p-5 max-md:p-3"
             }`}
           >
-            {activeView === "workspace" && workspace.context ? (
+            {activeView === "workspace" ? (
               <ChatWorkspace
+                a2aAgentCard={a2aAgentCard}
+                a2aAgents={a2aAgents}
+                a2aConcepts={a2aConcepts}
                 attachments={workspace.attachments}
                 clearingUnread={workspace.clearingUnread}
                 context={workspace.context}
                 draft={workspace.draft}
                 events={workspace.events}
+                files={workspace.files}
                 filePreview={workspace.filePreview}
                 messages={workspace.messages}
                 onClearUnread={workspace.clearUnread}
                 onDraftChange={workspace.setDraft}
                 onPreviewFile={workspace.loadFilePreview}
+                onRefreshA2a={refreshA2a}
                 onRefreshContext={refreshContext}
+                onRefreshMcp={refreshMcp}
+                onRefreshMultiAgent={refreshMultiAgent}
+                onRefreshSandbox={refreshSandbox}
+                onRefreshVnc={refreshVnc}
                 onSend={workspace.sendMessage}
                 onSelectFile={workspace.selectFile}
                 onStop={workspace.stopSession}
@@ -360,6 +369,12 @@ export default function Home() {
                 plan={workspace.latestPlan}
                 planning={workspace.planning}
                 task={workspace.currentTask}
+                mcpServers={mcpServers}
+                mcpTools={mcpTools}
+                multiAgentRoles={multiAgentRoles}
+                sandbox={sandboxStatus}
+                sandboxRefreshing={sandboxRefreshing}
+                vnc={vncStatus}
                 selectedFile={workspace.selectedFile}
                 selectedSession={workspace.selectedSession}
                 sending={workspace.sendingMessage}

@@ -71,8 +71,6 @@ export default function ConversationTimeline({
     return <TimelineEmptyState />;
   }
 
-  console.log(viewModel, "@@@");
-
   return (
     <>
       <div className="relative min-h-0 flex-1">

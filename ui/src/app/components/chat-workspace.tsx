@@ -1,43 +1,63 @@
 import { useState } from "react";
 
-import type { FilePreviewData } from "@/types/files";
-import type { AgentPlan } from "@/types/planner";
-import SessionControlBar from "@/components/session-control-bar";
+import AttachmentList from "./attachment-list";
+import AttachmentUpload from "./attachment-upload";
+import ChatInput from "./chat-input";
+import ContextPanel from "./context-panel";
 import ConversationTimeline from "@/components/conversation/index";
-import AttachmentUpload from "@/components/attachment-upload";
-import AttachmentList from "@/components/attachment-list";
-import ChatInput from "@/components/chat-input";
-import ToolPreviewPanel from "@/components/tool-preview-panel";
-import FilePreviewPanel from "@/components/file-preview-panel";
-import ContextPanel from "@/components/context-panel";
+import FilePreviewPanel from "./file-preview-panel";
+import SessionControlBar from "./session-control-bar";
+import ToolPreviewPanel from "./tool-preview-panel";
 
 import type {
-  AgentTaskItem,
-  ChatMessage,
   LoadState,
-  SessionContextData,
   SessionEventItem,
   SessionFileItem,
+  SessionContextData,
+  ChatMessage,
   SessionItem,
+  AgentTaskItem,
 } from "@/types/sessions";
+import type { A2aAgentCardData, A2aRemoteAgentListData, A2aConceptsData } from "@/types/a2a";
+import type { FilePreviewData } from "@/types/files";
+import type { McpServerListData, McpToolListData } from "@/types/mcp";
+import type { MultiAgentRoleListData } from "@/types/mutil-agent";
+import type { SandboxInstanceData } from "@/types/sandbox";
+import type { VncStatusData } from "@/types/vnc";
+import type { AgentPlan } from "@/types/planner";
 
 type ChatWorkspaceProps = {
+  a2aAgentCard: LoadState<A2aAgentCardData>;
+  a2aAgents: LoadState<A2aRemoteAgentListData>;
+  a2aConcepts: LoadState<A2aConceptsData>;
   attachments: SessionFileItem[];
   draft: string;
   clearingUnread: boolean;
   events: LoadState<SessionEventItem[]>;
   context: LoadState<SessionContextData | null>;
+  files: LoadState<SessionFileItem[]>;
   filePreview: LoadState<FilePreviewData | null>;
   messages: LoadState<ChatMessage[]>;
   onClearUnread: () => void;
   onRefreshContext: () => void;
+  onRefreshMcp: () => void;
+  onRefreshMultiAgent: () => void;
+  onRefreshSandbox: () => void;
+  onRefreshVnc: () => void;
   onDraftChange: (value: string) => void;
   onPreviewFile: (fileId: string) => void;
+  onRefreshA2a: () => void;
   onSend: () => void;
   onSelectFile: (file: SessionFileItem | null) => void;
   onStop: () => void;
   onUploadFile: (file: File) => void;
   selectedFile: SessionFileItem | null;
+  mcpServers: LoadState<McpServerListData>;
+  mcpTools: LoadState<McpToolListData>;
+  multiAgentRoles: LoadState<MultiAgentRoleListData>;
+  sandbox: LoadState<SandboxInstanceData>;
+  sandboxRefreshing: boolean;
+  vnc: LoadState<VncStatusData>;
   selectedSession: SessionItem | null;
   plan: AgentPlan | null;
   task: AgentTaskItem | null;
@@ -49,22 +69,37 @@ type ChatWorkspaceProps = {
 };
 
 export default function ChatWorkspace({
+  a2aAgentCard,
+  a2aAgents,
+  a2aConcepts,
   attachments,
   clearingUnread,
   context,
   draft,
   events,
+  files,
   filePreview,
   messages,
   onClearUnread,
   onRefreshContext,
+  onRefreshMcp,
+  onRefreshMultiAgent,
+  onRefreshSandbox,
+  onRefreshVnc,
   onDraftChange,
   onPreviewFile,
+  onRefreshA2a,
   onSend,
   onSelectFile,
   onStop,
   onUploadFile,
   selectedFile,
+  mcpServers,
+  mcpTools,
+  multiAgentRoles,
+  sandbox,
+  sandboxRefreshing,
+  vnc,
   selectedSession,
   plan,
   task,
@@ -94,7 +129,7 @@ export default function ChatWorkspace({
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(59,130,246,0.14),transparent_34%),linear-gradient(180deg,rgba(5,6,10,0.25),#05060a_78%)]" />
       <div
         className={`relative z-10 flex min-h-0 flex-1 flex-col overflow-hidden ${
-          hasPreview ? "" : "mx-auto w-full max-w-[1080px]"
+          hasPreview ? "" : "mx-auto w-full max-w-[980px]"
         }`}
       >
         <SessionControlBar
@@ -153,7 +188,9 @@ export default function ChatWorkspace({
           <ToolPreviewPanel
             events={events}
             onClose={() => setSelectedToolEventId(null)}
+            onRefreshVnc={onRefreshVnc}
             selectedToolEventId={selectedToolEventId}
+            vnc={vnc}
           />
         </aside>
       ) : null}
