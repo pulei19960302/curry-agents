@@ -36,7 +36,7 @@ export default function AppSidebar({
   onTitleChange,
 }: AppSidebarProps) {
   return (
-    <aside className="flex h-screen min-h-0 flex-col overflow-hidden border-r border-white/10 bg-black px-4 py-5 max-lg:h-auto max-lg:max-h-[46vh] max-lg:border-r-0 max-lg:border-b">
+    <aside className="flex h-screen min-h-0 flex-col overflow-hidden border-r border-white/10 bg-black px-4 py-5 max-lg:h-auto max-lg:max-h-[40dvh] max-lg:border-r-0 max-lg:border-b max-sm:max-h-[34dvh] max-sm:px-4 max-sm:py-4">
       <div className="flex shrink-0 items-center gap-3 px-2">
         <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-blue-500/30 bg-blue-500/15 text-blue-400">
           <Bot size={22} aria-hidden="true" />
@@ -46,10 +46,12 @@ export default function AppSidebar({
           <div className="mt-1 text-xs text-zinc-500">Agent Workspace</div>
         </div>
       </div>
+
       <div
-        className={`mt-5 flex shrink-0 items-center justify-between rounded-2xl px-3 py-2 ${workspaceSurface.panel}`}
+        className={`mt-5 flex shrink-0 items-center justify-between rounded-2xl px-3 py-2 max-sm:mt-4 ${workspaceSurface.panel}`}
       >
         <button
+          aria-label="切换到对话工作台"
           className={`rounded-full px-3 py-1.5 text-sm font-medium transition ${
             activeView === "workspace"
               ? "bg-blue-500 text-white"
@@ -61,6 +63,7 @@ export default function AppSidebar({
           对话
         </button>
         <button
+          aria-label="打开设置"
           className={`flex h-8 w-8 items-center justify-center rounded-full transition ${
             activeView === "settings"
               ? "bg-white/15 text-zinc-50"
@@ -70,12 +73,12 @@ export default function AppSidebar({
           title="设置"
           type="button"
         >
-          <Settings size={18} aria-hidden="true" />
+          <Settings size={15} aria-hidden="true" />
         </button>
       </div>
 
       <form
-        className="mt-4 shrink-0 rounded-2xl border border-white/10 bg-white/[0.04] p-3"
+        className="mt-6 shrink-0 rounded-2xl border border-white/10 bg-white/[0.04] p-3 max-sm:mt-4 max-sm:p-2.5"
         onSubmit={(event) => {
           event.preventDefault();
           onCreateSession();
@@ -94,6 +97,7 @@ export default function AppSidebar({
             value={title}
           />
           <button
+            aria-label="创建会话"
             className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${workspaceButton.primary}`}
             disabled={submitting}
             title="创建会话"
@@ -104,11 +108,12 @@ export default function AppSidebar({
         </div>
       </form>
 
-      <div className="mt-6 flex shrink-0 items-center justify-between">
+      <div className="mt-6 flex shrink-0 items-center justify-between max-sm:mt-4">
         <div className="flex items-center gap-2 text-sm font-semibold text-zinc-200">
           <span>任务列表</span>
         </div>
         <button
+          aria-label="刷新任务列表"
           className="flex h-8 w-8 items-center justify-center rounded-md text-zinc-500 transition hover:bg-white/10 hover:text-zinc-50"
           onClick={onRefresh}
           title="刷新"

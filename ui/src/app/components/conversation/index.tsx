@@ -113,6 +113,7 @@ export default function ConversationTimeline({
             className="absolute bottom-5 left-1/2 z-20 inline-flex -translate-x-1/2 items-center gap-2 rounded-full border border-blue-400/30 bg-[#111421]/95 px-4 py-2 text-sm font-semibold text-blue-100 shadow-2xl shadow-black/40 backdrop-blur-xl transition hover:border-blue-300/60"
             onClick={() => scrollToBottom("smooth")}
             type="button"
+            aria-label="回到对话底部"
           >
             <ArrowDown size={15} aria-hidden="true" />
             回到底部

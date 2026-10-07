@@ -102,6 +102,7 @@ export default function StepCard({
               onClick={() => setExpanded((value) => !value)}
               title={expanded ? "折叠步骤" : "展开步骤"}
               type="button"
+              aria-label={expanded ? "折叠步骤" : "展开步骤"}
             >
               {expanded ? (
                 <ChevronUp size={15} aria-hidden="true" />
@@ -130,6 +131,7 @@ export default function StepCard({
                   key={label}
                   onClick={() => step.toolEvent && onSelectToolEvent(step.toolEvent.id)}
                   type="button"
+                  aria-label={`查看工具详情：${label}`}
                 >
                   <Search className="shrink-0 text-blue-400" size={20} aria-hidden="true" />
                   <span className="truncate">{label}</span>
@@ -148,6 +150,7 @@ export default function StepCard({
             }`}
             onClick={() => onSelectToolEvent(step.toolEvent!.id)}
             type="button"
+            aria-label={`查看步骤详情：${step.title}`}
           >
             查看工具详情
           </button>

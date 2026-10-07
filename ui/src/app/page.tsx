@@ -296,8 +296,8 @@ export default function Home() {
   const dbBadge = getBadge(databaseStatus, "数据库正常", "数据库异常");
 
   return (
-    <main className="h-screen overflow-hidden bg-[#050506] text-zinc-50">
-      <div className="grid h-full min-h-0 grid-cols-[300px_1fr] max-lg:grid-cols-1">
+    <main className="h-[100dvh] overflow-hidden bg-[#050506] text-zinc-50">
+      <div className="grid h-full min-h-0 grid-cols-[300px_1fr] max-lg:grid-cols-1 max-lg:grid-rows-[auto_1fr]">
         <AppSidebar
           actionError={workspace.actionError}
           activeView={activeView}

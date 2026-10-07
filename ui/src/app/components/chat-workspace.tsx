@@ -124,7 +124,7 @@ export default function ChatWorkspace({
   }
 
   return (
-    <section className="relative flex h-full min-h-0 gap-0 overflow-hidden bg-transparent max-xl:flex-col">
+    <section className="relative flex h-full min-h-0 gap-0 overflow-hidden bg-transparent">
       <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.035)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.035)_1px,transparent_1px)] bg-[size:64px_64px]" />
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(59,130,246,0.14),transparent_34%),linear-gradient(180deg,rgba(5,6,10,0.25),#05060a_78%)]" />
       <div
@@ -184,7 +184,10 @@ export default function ChatWorkspace({
       </div>
 
       {hasToolPreview ? (
-        <aside className="relative z-20 h-full w-[600px] shrink-0 border-l border-white/10 bg-[#07080d]/95 py-2 pr-2 shadow-2xl shadow-black/40 max-xl:h-[640px] max-xl:w-full">
+        <aside
+          aria-label="工具预览工作区"
+          className="relative z-20 h-full w-[600px] shrink-0 border-l border-white/10 bg-[#07080d]/95 py-2 pr-2 shadow-2xl shadow-black/40 max-xl:absolute max-xl:inset-x-3 max-xl:bottom-3 max-xl:h-[70dvh] max-xl:w-auto max-xl:rounded-3xl max-xl:border max-xl:p-2"
+        >
           <ToolPreviewPanel
             events={events}
             onClose={() => setSelectedToolEventId(null)}
@@ -195,7 +198,10 @@ export default function ChatWorkspace({
         </aside>
       ) : null}
       {hasFilePreview ? (
-        <aside className="relative z-20 h-full w-[600px] shrink-0 border-l border-white/10 bg-[#07080d]/95 py-2 pr-2 shadow-2xl shadow-black/40 max-xl:h-[640px] max-xl:w-full">
+        <aside
+          aria-label="文件预览工作区"
+          className="relative z-20 h-full w-[600px] shrink-0 border-l border-white/10 bg-[#07080d]/95 py-2 pr-2 shadow-2xl shadow-black/40 max-xl:absolute max-xl:inset-x-3 max-xl:bottom-3 max-xl:h-[70dvh] max-xl:w-auto max-xl:rounded-3xl max-xl:border max-xl:p-2"
+        >
           <FilePreviewPanel
             onClose={() => onSelectFile(null)}
             onPreview={onPreviewFile}
@@ -205,7 +211,10 @@ export default function ChatWorkspace({
         </aside>
       ) : null}
       {showContextPreview ? (
-        <aside className="relative z-20 h-full w-[600px] shrink-0 border-l border-white/10 bg-[#07080d]/95 py-2 pr-2 shadow-2xl shadow-black/40 max-xl:h-[720px] max-xl:w-full">
+        <aside
+          aria-label="上下文工作区"
+          className="relative z-20 h-full w-[600px] shrink-0 border-l border-white/10 bg-[#07080d]/95 py-2 pr-2 shadow-2xl shadow-black/40 max-xl:absolute max-xl:inset-x-3 max-xl:bottom-3 max-xl:h-[76dvh] max-xl:w-auto max-xl:rounded-3xl max-xl:border max-xl:p-2"
+        >
           <ContextPanel
             context={context}
             disabled={!selectedSession}

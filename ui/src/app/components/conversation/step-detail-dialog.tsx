@@ -1,5 +1,5 @@
 import { X } from "lucide-react";
-import { useMemo, type ReactNode } from "react";
+import { useEffect, useMemo, type ReactNode } from "react";
 
 import type { PlanStepView } from "./types";
 import { getStatusLabel } from "./view-model";
@@ -20,15 +20,32 @@ export default function StepDetailDialog({
   const toolName = parseString(step.toolEvent?.payload.tool_name);
   const toolOutput = parseString(step.toolEvent?.payload.output);
 
+  useEffect(() => {
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        onClose();
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [onClose]);
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/65 px-4 backdrop-blur-sm">
-      <section className="max-h-[86vh] w-full max-w-3xl overflow-hidden rounded-3xl border border-white/10 bg-[#090b12] shadow-2xl shadow-black/70">
+      <section
+        aria-labelledby="step-detail-title"
+        aria-modal="true"
+        className="max-h-[86vh] w-full max-w-3xl overflow-hidden rounded-3xl border border-white/10 bg-[#090b12] shadow-2xl shadow-black/70"
+        role="dialog"
+      >
         <div className="flex items-start justify-between gap-4 border-b border-white/10 bg-white/[0.03] px-6 py-5">
           <div className="min-w-0">
             <div className="text-xs font-medium tracking-[0.18em] text-blue-400 uppercase">
               Step Detail
             </div>
-            <h3 className="mt-2 text-xl font-semibold text-zinc-50">{step.title}</h3>
+            <h3 id="step-detail-title" className="mt-2 text-xl font-semibold text-zinc-50">
+              {step.title}
+            </h3>
             <p className="mt-2 text-sm leading-6 text-zinc-500">
               {step.description ||
                 step.expected_output ||

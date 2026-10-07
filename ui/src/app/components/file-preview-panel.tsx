@@ -110,7 +110,12 @@ function FilePreviewDialog({
 }) {
   return (
     <div className="fixed inset-0 z-50 bg-black/70 p-6 backdrop-blur-sm max-sm:p-3">
-      <div className="mx-auto flex h-full max-w-5xl flex-col overflow-hidden rounded-[28px] border border-white/10 bg-[#08090d] shadow-2xl shadow-black">
+      <div
+        aria-labelledby="file-preview-title"
+        aria-modal="true"
+        className="mx-auto flex h-full max-w-5xl flex-col overflow-hidden rounded-[28px] border border-white/10 bg-[#08090d] shadow-2xl shadow-black"
+        role="dialog"
+      >
         <div className="flex items-center justify-between gap-3 border-b border-white/10 px-5 py-4">
           <div className="min-w-0">
             <h2 className="truncate text-base font-semibold text-zinc-50">{name}</h2>
