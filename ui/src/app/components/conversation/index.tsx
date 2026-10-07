@@ -85,20 +85,21 @@ export default function ConversationTimeline({
                 <div className="stream-in" key={item.id}>
                   <MessageBubble message={item.message} />
                 </div>
-              ) : viewModel.latestPlan ? (
-                <div className="stream-in" key={item.id}>
-                  <AgentRunBlock
-                    events={events.data}
-                    finalEvent={viewModel.finalEvent}
-                    onSelectToolEvent={onSelectToolEvent}
-                    onOpenStep={setDetailStep}
-                    plan={viewModel.latestPlan}
-                    planning={planning}
-                    selectedToolEventId={selectedToolEventId}
-                  />
-                </div>
               ) : null,
             )}
+            {viewModel.latestPlan ? (
+              <div className="stream-in">
+                <AgentRunBlock
+                  events={events.data}
+                  finalEvent={viewModel.finalEvent}
+                  onSelectToolEvent={onSelectToolEvent}
+                  onOpenStep={setDetailStep}
+                  plan={viewModel.latestPlan}
+                  planning={planning}
+                  selectedToolEventId={selectedToolEventId}
+                />
+              </div>
+            ) : null}
             <TaskStatusCard task={task} />
             {planning || executing ? (
               <RunningBlock
@@ -110,10 +111,10 @@ export default function ConversationTimeline({
         </div>
         {!pinnedToBottom ? (
           <button
+            aria-label="回到对话底部"
             className="absolute bottom-5 left-1/2 z-20 inline-flex -translate-x-1/2 items-center gap-2 rounded-full border border-blue-400/30 bg-[#111421]/95 px-4 py-2 text-sm font-semibold text-blue-100 shadow-2xl shadow-black/40 backdrop-blur-xl transition hover:border-blue-300/60"
             onClick={() => scrollToBottom("smooth")}
             type="button"
-            aria-label="回到对话底部"
           >
             <ArrowDown size={15} aria-hidden="true" />
             回到底部

@@ -8,6 +8,8 @@ import ConversationTimeline from "@/components/conversation/index";
 import FilePreviewPanel from "./file-preview-panel";
 import SessionControlBar from "./session-control-bar";
 import ToolPreviewPanel from "./tool-preview-panel";
+import { buildPlanProgressView } from "./conversation/view-model";
+import PlanProgressBar from "./conversation/plan-progress-bar";
 
 import type {
   LoadState,
@@ -116,6 +118,11 @@ export default function ChatWorkspace({
     !showContextPreview && selectedToolEventId === null && selectedFile !== null;
   const hasPreview = hasToolPreview || hasFilePreview || showContextPreview;
 
+  // 加载好了获取session event
+  const eventItems = events.type === "ready" ? events.data : [];
+
+  const planProgress = buildPlanProgressView(plan, eventItems, planning, executingPlan);
+
   function openFilePreview(file: SessionFileItem) {
     setShowContextPreview(false);
     setSelectedToolEventId(null);
@@ -162,6 +169,7 @@ export default function ChatWorkspace({
         <div className="mt-auto shrink-0 bg-[#05060a]/85 px-8 py-4 backdrop-blur-2xl max-md:px-4">
           <div className="mx-auto mb-3 h-px w-[220px] bg-gradient-to-r from-transparent via-blue-500/30 to-transparent" />
           <div className="mx-auto max-w-5xl">
+            <PlanProgressBar progress={planProgress} />
             <div className="mb-2 flex flex-wrap items-center justify-start gap-2">
               <div className="flex items-center gap-3">
                 <AttachmentUpload

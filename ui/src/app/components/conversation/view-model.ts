@@ -1,5 +1,5 @@
 import type { ChatMessage, SessionEventItem } from "@/types/sessions";
-import type { AgentPlan } from "@/types/planner";
+import type { AgentPlan, PlanProgressView } from "@/types/planner";
 import type {
   AgentRunViewModel,
   TimelineItem,
@@ -148,6 +148,39 @@ export function parseToolOutput(event: SessionEventItem | null): MultiAgentInlin
     return null;
   }
   return null;
+}
+
+// 从事件生成计划进度模型
+export function buildPlanProgressView(
+  plan: AgentPlan | null,
+  events: SessionEventItem[],
+  planning: boolean,
+  executing: boolean,
+): PlanProgressView | null {
+  if (!plan) {
+    return null;
+  }
+
+  const steps = buildStepViews(plan, events);
+
+  const completedCount = steps.filter((step) => step.status === "completed").length;
+  const failed = Boolean(events.find((event) => event.type === "task_error")?.id); // 找到一个task_error事件就算失败
+
+  const runningStep = steps.find((step) => step.status === "running") ?? null;
+  const pendingStep = steps.find((step) => step.status === "pending") ?? null;
+  const activeStep = failed ? null : (runningStep ?? pendingStep);
+  const running = planning || executing || Boolean(runningStep);
+
+  return {
+    activeStep,
+    completedCount,
+    expandedByDefault: running,
+    failed,
+    running,
+    steps,
+    title: plan.title || "任务执行计划",
+    totalCount: steps.length,
+  };
 }
 
 // 多任务输出
