@@ -26,12 +26,17 @@ def register_sandbox_file_tools(
         AgentTool(
             definition=ToolDefinition(
                 name="file_list",
-                description="列出 Sandbox 工作目录中的文件和子目录。",
+                description="列出 Sandbox 工作目录中的文件和子目录。工作目录已作为路径基准，浏览根目录时省略 path 或传入 '.'。",
                 parameters=[
                     ToolParameter(
                         name="path",
                         type="string",
-                        description="要浏览的相对路径，默认是 workspace 根目录。",
+                        description=(
+                            "相对于 Sandbox 工作目录的目录路径。根目录传 '.' 或省略此参数；"
+                            "浏览子目录例如传 'images'。不要把工作目录名称 'workspace' "
+                            "或绝对路径 '/workspace' 当作根目录传入，也不要额外添加工作目录前缀。"
+                            "'workspace' 仅表示工作目录中实际存在的同名子目录。"
+                        ),
                         required=False,
                     )
                 ]
@@ -51,7 +56,7 @@ def register_sandbox_file_tools(
                     ToolParameter(
                         name="path",
                         type="string",
-                        description="要读取的文件相对路径。",
+                        description="相对于 Sandbox 工作目录的文件路径，例如 'index.html' 或 'images/info.txt'。不要额外添加工作目录前缀，不接受绝对路径。",
                     )
                 ]
 
@@ -70,7 +75,7 @@ def register_sandbox_file_tools(
                     ToolParameter(
                         name="path",
                         type="string",
-                        description="要写入的文件相对路径。",
+                        description="相对于 Sandbox 工作目录的文件路径，例如 'index.html' 或 'images/info.txt'。不要额外添加工作目录前缀，不接受绝对路径。",
                     ),
                     ToolParameter(
                         name="content",
@@ -94,7 +99,7 @@ def register_sandbox_file_tools(
                     ToolParameter(
                         name="path",
                         type="string",
-                        description="要修改的文件相对路径。",
+                        description="相对于 Sandbox 工作目录的文件路径，例如 'index.html' 或 'images/info.txt'。不要额外添加工作目录前缀，不接受绝对路径。",
                     ),
                     ToolParameter(
                         name="old_text",
@@ -124,7 +129,7 @@ def register_sandbox_file_tools(
                     ToolParameter(
                         name="path",
                         type="string",
-                        description="要删除的文件或目录相对路径。",
+                        description="相对于 Sandbox 工作目录的文件或目录路径，例如 'index.html' 或 'images'。不要额外添加工作目录前缀，不接受绝对路径。",
                     )
                 ],
             ),

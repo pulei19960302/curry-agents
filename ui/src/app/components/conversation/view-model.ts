@@ -177,8 +177,17 @@ export function getStatusClass(status: string) {
   if (status === "running") {
     return "shrink-0 whitespace-nowrap rounded-full border border-amber-500/30 bg-amber-500/10 px-3 py-1 text-xs font-semibold text-amber-200";
   }
+  if (status === "waiting") {
+    return "shrink-0 whitespace-nowrap rounded-full border border-cyan-500/30 bg-cyan-500/10 px-3 py-1 text-xs font-semibold text-cyan-200";
+  }
+  if (status === "retrying") {
+    return "shrink-0 whitespace-nowrap rounded-full border border-violet-500/30 bg-violet-500/10 px-3 py-1 text-xs font-semibold text-violet-200";
+  }
   if (status === "failed") {
     return "shrink-0 whitespace-nowrap rounded-full border border-rose-500/30 bg-rose-500/10 px-3 py-1 text-xs font-semibold text-rose-200";
+  }
+  if (status === "stopped") {
+    return "shrink-0 whitespace-nowrap rounded-full border border-zinc-500/30 bg-zinc-500/10 px-3 py-1 text-xs font-semibold text-zinc-300";
   }
   return "shrink-0 whitespace-nowrap rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs font-semibold text-zinc-500";
 }
@@ -188,10 +197,19 @@ export function getStatusLabel(status: string) {
     return "完成";
   }
   if (status === "running") {
-    return "运行";
+    return "运行中";
+  }
+  if (status === "waiting") {
+    return "等待中";
+  }
+  if (status === "retrying") {
+    return "重试中";
   }
   if (status === "failed") {
     return "失败";
   }
-  return "等待";
+  if (status === "stopped") {
+    return "停止";
+  }
+  return "待处理";
 }

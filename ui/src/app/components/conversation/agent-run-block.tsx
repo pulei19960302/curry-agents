@@ -20,25 +20,23 @@ export type AgentRunBlockProps = {
   selectedToolEventId: string | null;
 };
 
-// 展示一次计划执行块
 export default function AgentRunBlock({
   events,
   finalEvent,
+  onSelectToolEvent,
+  onOpenStep,
   plan,
   planning,
   selectedToolEventId,
-  onOpenStep,
-  onSelectToolEvent,
 }: AgentRunBlockProps) {
-  const [expanded, setExpanded] = useState(false);
-
-  const steps = useMemo(() => buildStepViews(plan, events), [plan.id, events]);
-
+  const [expanded, setExpanded] = useState(true);
+  const steps = useMemo(() => buildStepViews(plan, events), [events, plan]);
   const completedCount = steps.filter((step) => step.status === "completed").length;
   const runningStep = steps.find((step) => step.status === "running") ?? null;
+  const activeStep = finalEvent
+    ? null
+    : (runningStep ?? steps.find((step) => step.status === "pending") ?? null);
   const failed = finalEvent?.type === "task_error";
-
-  const stepLen = plan?.steps?.length || 0;
 
   return (
     <div className="grid gap-4">
@@ -47,7 +45,7 @@ export default function AgentRunBlock({
         <div className="max-w-5xl pt-1">
           <div className="text-base font-semibold text-blue-400">CurryAgent</div>
           <p className="mt-3 text-base leading-8 text-zinc-400">
-            这是一个任务执行过程，已拆成 {stepLen}
+            这是一个任务执行过程，已拆成 {plan.steps.length}
             个步骤。下面会按顺序规划、调用工具、记录证据并汇总结果。
           </p>
         </div>
@@ -67,7 +65,7 @@ export default function AgentRunBlock({
           </div>
           <div className="flex shrink-0 items-center gap-3 text-sm text-zinc-400">
             <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1">
-              {completedCount} / {stepLen}
+              {completedCount} / {plan.steps.length}
             </span>
             {expanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
           </div>
@@ -77,6 +75,7 @@ export default function AgentRunBlock({
           <div className="grid gap-4 py-5">
             {steps.map((step, index) => (
               <StepCard
+                highlighted={activeStep?.id === step.id}
                 index={index}
                 key={step.id}
                 onOpenStep={onOpenStep}

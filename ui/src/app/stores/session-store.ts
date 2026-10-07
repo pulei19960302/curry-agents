@@ -82,17 +82,6 @@ function getErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : "unknown error";
 }
 
-function getStreamErrorMessage(event: StreamEvent): string {
-  const message = event.data.message;
-  const code = event.data.code;
-
-  if (typeof message === "string" && message.trim()) {
-    return typeof code === "string" || typeof code === "number" ? `[${code}] ${message}` : message;
-  }
-
-  return "任务流执行失败";
-}
-
 function sleep(ms: number) {
   return new Promise((resolve) => {
     window.setTimeout(resolve, ms);
@@ -100,20 +89,25 @@ function sleep(ms: number) {
 }
 
 function getPresentationDelay(eventName: string) {
+  // ===================== 第1步：给不同事件留出可感知的展示节奏 =====================
+  // 这里不是伪造后端耗时，而是避免浏览器把 SSE 瞬间批量刷出，导致用户看不清执行顺序。
   if (eventName === "message_created") {
     return 120;
   }
   if (eventName === "plan_created") {
-    return 420;
+    return 460;
   }
   if (eventName === "step_started") {
-    return 520;
+    return 560;
   }
   if (eventName === "tool_called") {
-    return 680;
+    return 720;
   }
   if (eventName === "step_completed") {
-    return 420;
+    return 460;
+  }
+  if (eventName === "task_done" || eventName === "task_error") {
+    return 280;
   }
   return 120;
 }
@@ -167,6 +161,29 @@ function toSessionEventItem(event: StreamEvent): SessionEventItem | null {
   }
 
   return null;
+}
+
+function toChatMessageItem(event: SessionEventItem): ChatMessage | null {
+  if (event.type !== "message_created") {
+    return null;
+  }
+  const messageId = event.payload.message_id;
+  const role = event.payload.role;
+  const content = event.payload.content;
+  if (
+    typeof messageId !== "string" ||
+    typeof content !== "string" ||
+    !["user", "assistant", "system"].includes(String(role))
+  ) {
+    return null;
+  }
+  return {
+    content,
+    created_at: event.created_at,
+    id: messageId,
+    role: role as ChatMessage["role"],
+    session_id: event.session_id,
+  };
 }
 
 function toSessionItem(event: StreamEvent): SessionItem | null {
@@ -505,15 +522,6 @@ const useSessionStore = create<SessionState & SessionActions>((set, get) => ({
       // ===================== 第1步：通过统一 SSE 发送任务并接收执行过程 =====================
       // 后端会依次推送 message_created、plan_created、step/tool/task 事件。
       await sendMessageToStream(sessionId, content, async (event) => {
-        if (event.event === "stream_error") {
-          set({
-            actionError: getStreamErrorMessage(event),
-            executingPlan: false,
-            planning: false,
-          });
-          return;
-        }
-
         await sleep(getPresentationDelay(event.event));
         const session = toSessionItem(event);
         if (session) {
@@ -535,6 +543,13 @@ const useSessionStore = create<SessionState & SessionActions>((set, get) => ({
         set((state) => {
           const currentEvents = state.events.type === "ready" ? state.events.data : [];
           const events = [...currentEvents, sessionEvent];
+          const currentMessages = state.messages.type === "ready" ? state.messages.data : [];
+          const streamMessageItem = toChatMessageItem(sessionEvent);
+          const messages =
+            streamMessageItem &&
+            !currentMessages.some((message) => message.id === streamMessageItem.id)
+              ? [...currentMessages, streamMessageItem]
+              : currentMessages;
           const latestPlan = applyExecutionEvents(getLatestPlan(events), events);
           return {
             events: {
@@ -546,6 +561,10 @@ const useSessionStore = create<SessionState & SessionActions>((set, get) => ({
                 ? false
                 : state.executingPlan || sessionEvent.type === "plan_created",
             latestPlan,
+            messages: {
+              type: "ready",
+              data: messages,
+            },
             planning: sessionEvent.type === "plan_created" ? false : state.planning,
           };
         });
