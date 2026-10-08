@@ -1,8 +1,7 @@
-from asyncio import to_thread
-
 import json
 import logging
 import re
+from asyncio import to_thread
 from dataclasses import dataclass
 from typing import Any
 from urllib.parse import quote, unquote, urlparse
@@ -350,11 +349,12 @@ class ModelToolSelectionService:
                 repaired[parameter.name] = "mcp_echo"
             elif parameter.name == "agent_key":
                 repaired[parameter.name] = "demo_researcher"
-
-        if tool.definition.name == "browser_open":
-            repaired["url"] = self._normalize_browser_url(
-                repaired.get("url"),
-                task_text,
+            elif parameter.name == "path" and tool.definition.name.startswith("file_"):
+                repaired[parameter.name] = self._extract_file_path(agent_context)
+        if tool.definition.name == "search_web":
+            repaired["query"] = self._normalize_search_query(
+                query=str(repaired.get("query") or ""),
+                task_text=task_text,
             )
         return repaired
 
@@ -541,3 +541,57 @@ class ModelToolSelectionService:
     def _trim(value: str, limit: int) -> str:
         clean = " ".join(value.split())
         return clean[:limit]
+
+    @classmethod
+    def _normalize_search_query(cls, *, query: str, task_text: str) -> str:
+        """把模型生成的搜索词修正成更适合中文网络环境的查询。
+
+        Bing 页面搜索在中文地区容易把 `recent artificial intelligence news`
+        理解成查 recent 这个英文单词。这里把 AI 新闻类任务改成
+        “中文主题 + 英文关键词 + 年份”的形式，提高命中新闻页的概率。
+        """
+
+        clean_query = " ".join(query.split())
+        clean_task = " ".join(task_text.split())
+        lower_query = clean_query.lower()
+        lower_task = clean_task.lower()
+
+        if cls._looks_like_ai_news_task(lower_query, lower_task):
+            if "agent" in lower_query or "agent" in lower_task:
+                return "AI Agent 最新新闻 2025"
+            return "人工智能 AI 新闻 最新 2025"
+
+        if not clean_query:
+            return cls._extract_search_query(clean_task)
+
+        return clean_query[:120]
+
+    @staticmethod
+    def _looks_like_ai_news_task(query: str, task: str) -> bool:
+        """判断当前搜索是否属于 AI 新闻类任务。"""
+
+        ai_terms = ["ai", "artificial intelligence", "人工智能", "智能体"]
+        news_terms = ["news", "新闻", "动态", "latest", "recent", "最新"]
+        combined = f"{query} {task}"
+        return any(term in combined for term in ai_terms) and any(
+            term in combined for term in news_terms
+        )
+
+    @staticmethod
+    def _extract_file_path(agent_context: str) -> str:
+        """从上下文里的文件引用提取一个可读文件名。
+
+        ContextEngineeringService.render_for_agent() 会输出：
+        - Page.tsx (text/plain, 可在需要时读取文本预览或下载内容。)
+        这里取出 Page.tsx，配合 ReActAgentService 的附件同步逻辑，
+        file_read 就能在 Sandbox 根目录中读到同名文件。
+        """
+
+        for line in agent_context.splitlines():
+            clean_line = line.strip()
+            if not clean_line.startswith("- "):
+                continue
+            candidate = clean_line.removeprefix("- ").split(" (", 1)[0].strip()
+            if candidate and "." in candidate and "/" not in candidate:
+                return candidate
+        return "."

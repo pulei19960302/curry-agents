@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Bot,
   Camera,
@@ -23,11 +23,13 @@ import { formatDateTime } from "@/lib/format";
 import type { LoadState, SessionEventItem } from "@/types/sessions";
 import { parseString } from "@/utils";
 import VncPanel from "./vnc-panel";
-import { VncStatusData } from "@/types/vnc";
+import type { VncStatusData } from "@/types/vnc";
+import type { PlanStepView, ToolObservation } from "./conversation/types";
+import { buildToolObservation } from "./conversation/view-model";
 
 type ToolPreviewPanelProps = {
-  events: LoadState<SessionEventItem[]>; // 会话事件列表，用来提取最近工具调用。
-  onClose: () => void; // 关闭右侧工具预览抽屉。
+  events: LoadState<SessionEventItem[]>; // 会话事件列表，用来定位当前点击的工具调用。
+  onClose: () => void; // 关闭右侧工具详情抽屉。
   onRefreshVnc: () => void; // 刷新 Sandbox VNC 状态。
   selectedToolEventId: string | null; // 中间对话流里选中的工具调用事件。
   vnc: LoadState<VncStatusData>; // 远程桌面状态，浏览器工具预览会复用它。
@@ -49,6 +51,14 @@ type SearchResultsPayload = {
     url: string;
     snippet: string;
   }>;
+};
+
+type SearchErrorPayload = {
+  kind: "search_error";
+  provider: string;
+  query: string;
+  message: string;
+  items: [];
 };
 
 type McpToolResultPayload = {
@@ -98,27 +108,17 @@ type MultiAgentResultPayload = {
   final_answer: string;
 };
 
-// 统一展示工具调用、文件和沙箱观察
+// ===================== 第1步：统一展示工具调用、文件和沙箱观察 =====================
 export default function ToolPreviewPanel({
   events,
-  vnc,
   onClose,
   onRefreshVnc,
   selectedToolEventId,
+  vnc,
 }: ToolPreviewPanelProps) {
   const [expandedEvent, setExpandedEvent] = useState<SessionEventItem | null>(null);
-
-  // 事件列表中既有 message_created、plan_created、step_started，
-  // 也有 tool_called。右侧工具详情只关心 tool_called。
   const toolEvents = useMemo(() => getToolEvents(events), [events]);
-
-  // 根据中间对话流点击的事件 ID 找到当前工具 =====================
-  // selectedToolEventId 来自 ConversationTimeline 的工具节点点击事件。
   const selectedToolEvent = toolEvents.find((event) => event.id === selectedToolEventId) ?? null;
-
-  // ===================== 第3步：准备标题和工具类型 =====================
-  // 正常情况下，右侧只会在有 selectedToolEventId 时打开。
-  // 这里保留一个 latest fallback，是为了防止极端状态下右侧出现空白。
   const activeToolEvent = selectedToolEvent ?? toolEvents[0] ?? null;
   const activeToolName = parseString(activeToolEvent?.payload.tool_name);
   const activeToolKind = activeToolEvent
@@ -130,21 +130,25 @@ export default function ToolPreviewPanel({
       <div className="border-b border-white/10 bg-[#0b0d14]/95 p-5">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <div className="mb-2 text-xs font-medium tracking-[0.18em] text-zinc-600 uppercase">
-              Tool Workspace
+            <div className="mb-2 text-xs font-medium tracking-[0.18em] text-blue-400/70 uppercase">
+              CurryAgent Computer
             </div>
             <h2 className="flex items-center gap-2 text-lg font-semibold text-zinc-50">
               <Monitor size={18} aria-hidden="true" />
-              CurryAgent 的电脑
+              {activeToolName || "当前工具详情"}
             </h2>
-            <p className="mt-1 text-sm leading-5 text-zinc-500">
-              查看工具调用、文件、浏览器、远程 Agent 和协作结果
-            </p>
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <ToolKindBadge kind={activeToolKind} />
+              <p className="text-sm leading-5 text-zinc-500">
+                点击对话流里的工具节点后，在这里查看参数、输出和观察证据
+              </p>
+            </div>
           </div>
           <button
+            aria-label="关闭工具详情"
             className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-white/[0.04] text-zinc-400 hover:bg-white/10 hover:text-zinc-50"
             onClick={onClose}
-            title="关闭工具预览"
+            title="关闭工具详情"
             type="button"
           >
             <X size={17} aria-hidden="true" />
@@ -230,11 +234,13 @@ function ToolCallDetail({
   const toolName = parseString(event.payload.tool_name);
   const output = parseString(event.payload.output);
   const previewKind = getToolKind(toolName, output);
+  const observation = buildObservationFromEvent(event);
 
   // 2. 尝试把 output 解析成不同工具的结构化结果。
   //    解析成功就用专门卡片展示，解析失败就回退为普通文本。
   const screenshot = parseScreenshot(output);
   const searchResults = parseSearchResults(output);
+  const searchError = parseSearchError(output);
   const mcpResult = parseMcpToolResult(output);
   const a2aResult = parseA2aTaskResult(output);
   const multiAgentResult = parseMultiAgentResult(output);
@@ -243,7 +249,7 @@ function ToolCallDetail({
   const Icon = getToolIcon(
     toolName,
     screenshot,
-    searchResults,
+    searchResults ?? searchError,
     mcpResult,
     a2aResult,
     multiAgentResult,
@@ -274,11 +280,18 @@ function ToolCallDetail({
               <span className="text-xs text-zinc-600">{formatDateTime(event.created_at)}</span>
             </div>
           </div>
-          <div className="p-4">
+          <div className="grid gap-4 p-4">
+            <ToolObservationCard
+              brief={observation.brief}
+              pills={observation.pills}
+              title={observation.title}
+            />
             {screenshot ? (
               <ScreenshotPreview screenshot={screenshot} />
             ) : searchResults ? (
               <SearchResultsPreview results={searchResults} />
+            ) : searchError ? (
+              <SearchErrorPreview error={searchError} />
             ) : mcpResult ? (
               <McpResultPreview result={mcpResult} />
             ) : a2aResult ? (
@@ -303,39 +316,48 @@ function ToolCallDetail({
 function ToolResultDialog({ event, onClose }: { event: SessionEventItem; onClose: () => void }) {
   const toolName = parseString(event.payload.tool_name);
   const output = parseString(event.payload.output);
+  const previewKind = getToolKind(toolName, output);
   const screenshot = parseScreenshot(output);
   const searchResults = parseSearchResults(output);
+  const searchError = parseSearchError(output);
   const mcpResult = parseMcpToolResult(output);
   const a2aResult = parseA2aTaskResult(output);
   const multiAgentResult = parseMultiAgentResult(output);
-  const previewKind = getToolKind(toolName, output);
+  const observation = buildObservationFromEvent(event);
+
+  useEffect(() => {
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        onClose();
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [onClose]);
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-950/55 p-6 max-sm:p-3">
+    <div className="fixed inset-0 z-50 bg-black/70 p-6 backdrop-blur-sm max-sm:p-3">
       <div
         aria-labelledby="tool-result-title"
         aria-modal="true"
-        className="mx-auto flex h-full max-w-5xl flex-col overflow-hidden rounded-md bg-white shadow-xl"
+        className="mx-auto flex h-full max-w-5xl flex-col overflow-hidden rounded-[28px] border border-white/10 bg-[#08090d] shadow-2xl shadow-black/70"
         role="dialog"
       >
-        <div className="flex items-center justify-between gap-3 border-b border-slate-200 px-5 py-4">
+        <div className="flex items-center justify-between gap-3 border-b border-white/10 bg-[#0b0d14]/95 px-5 py-4">
           <div className="min-w-0">
             <div className="flex items-center gap-2">
-              <h2
-                className="truncate text-base font-semibold text-slate-950"
-                id="tool-result-title"
-              >
+              <h2 className="truncate text-base font-semibold text-zinc-50" id="tool-result-title">
                 {toolName || "工具详情"}
               </h2>
-              <ToolKindBadge kind={previewKind} tone="light" />
+              <ToolKindBadge kind={previewKind} />
             </div>
-            <p className="mt-1 text-xs text-slate-500">{formatDateTime(event.created_at)}</p>
+            <p className="mt-1 text-xs text-zinc-500">{formatDateTime(event.created_at)}</p>
           </div>
           <div className="flex shrink-0 items-center gap-2">
-            <CopyButton value={output || JSON.stringify(event.payload, null, 2)} tone="light" />
+            <CopyButton value={output || JSON.stringify(event.payload, null, 2)} />
             <button
               aria-label="关闭工具详情"
-              className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-slate-200 text-slate-600 hover:bg-slate-50"
+              className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-white/[0.04] text-zinc-400 hover:bg-white/10 hover:text-zinc-50"
               onClick={onClose}
               title="关闭"
               type="button"
@@ -346,7 +368,12 @@ function ToolResultDialog({ event, onClose }: { event: SessionEventItem; onClose
         </div>
 
         <div className="grid flex-1 grid-cols-[320px_1fr] overflow-hidden max-lg:grid-cols-1">
-          <aside className="overflow-auto border-r border-slate-200 bg-slate-50 p-4 max-lg:border-r-0 max-lg:border-b">
+          <aside className="overflow-auto border-r border-white/10 bg-white/[0.025] p-4 max-lg:border-r-0 max-lg:border-b">
+            <ToolObservationCard
+              brief={observation.brief}
+              pills={observation.pills}
+              title={observation.title}
+            />
             <ToolArguments value={event.payload.arguments} />
           </aside>
           <main className="overflow-auto p-5">
@@ -358,6 +385,8 @@ function ToolResultDialog({ event, onClose }: { event: SessionEventItem; onClose
               />
             ) : searchResults ? (
               <SearchResultsPreview results={searchResults} />
+            ) : searchError ? (
+              <SearchErrorPreview error={searchError} />
             ) : mcpResult ? (
               <McpResultPreview result={mcpResult} />
             ) : a2aResult ? (
@@ -379,18 +408,67 @@ function ToolResultDialog({ event, onClose }: { event: SessionEventItem; onClose
 }
 
 function ToolArguments({ value }: { value: unknown }) {
+  const entries = getArgumentEntries(value);
   return (
-    <div className="mt-3 break-all">
-      <div className="mb-1 text-xs font-medium text-slate-500">调用参数</div>
-      <pre className="overflow-auto rounded-md bg-white p-2 text-[11px] leading-5 text-slate-600">
-        {JSON.stringify(value ?? {}, null, 2)}
-      </pre>
+    <div className="mt-3">
+      <div className="mb-1 text-xs font-medium text-zinc-500">调用参数</div>
+      {entries.length ? (
+        <div className="grid gap-2">
+          {entries.map(([key, entryValue]) => (
+            <div className="rounded-2xl border border-white/10 bg-black/20 px-3 py-2" key={key}>
+              <div className="text-[11px] font-semibold tracking-[0.12em] text-zinc-600 uppercase">
+                {key}
+              </div>
+              <div className="mt-1 text-xs leading-5 break-words text-zinc-300">
+                {formatArgumentValue(entryValue)}
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="rounded-2xl border border-white/10 bg-black/20 px-3 py-2 text-xs text-zinc-500">
+          这个工具没有显式参数。
+        </div>
+      )}
     </div>
+  );
+}
+
+function ToolObservationCard({
+  brief,
+  pills,
+  title,
+}: {
+  brief: string;
+  pills: string[];
+  title: string;
+}) {
+  return (
+    <section className="rounded-[22px] border border-blue-500/20 bg-blue-500/[0.06] px-4 py-3">
+      <div className="flex items-center gap-2 text-sm font-semibold text-blue-100">
+        <Check size={15} aria-hidden="true" />
+        {title}
+      </div>
+      <p className="mt-2 text-sm leading-6 text-blue-100/70">{brief}</p>
+      {pills.length ? (
+        <div className="mt-3 flex flex-wrap gap-2">
+          {pills.map((label) => (
+            <span
+              className="rounded-full border border-blue-400/20 bg-blue-400/10 px-3 py-1 text-xs font-medium text-blue-100/80"
+              key={label}
+            >
+              {label}
+            </span>
+          ))}
+        </div>
+      ) : null}
+    </section>
   );
 }
 
 function CopyButton({ tone = "dark", value }: { tone?: "dark" | "light"; value: string }) {
   const [copied, setCopied] = useState(false);
+
   async function copyValue() {
     try {
       await navigator.clipboard.writeText(value);
@@ -403,9 +481,10 @@ function CopyButton({ tone = "dark", value }: { tone?: "dark" | "light"; value: 
 
   return (
     <button
+      aria-label={copied ? "工具输出已复制" : "复制工具输出"}
       className={
         tone === "light"
-          ? "inline-flex h-9 items-center gap-1 rounded-md border border-slate-200 px-3 text-xs font-medium text-slate-600 hover:bg-slate-50"
+          ? "inline-flex h-9 items-center gap-1 rounded-md border border-white/10 px-3 text-xs font-medium text-zinc-400 hover:bg-white/[0.04]"
           : "inline-flex h-8 items-center gap-1 rounded-full border border-white/10 bg-white/[0.04] px-3 text-xs font-medium text-zinc-400 hover:text-zinc-50"
       }
       onClick={copyValue}
@@ -421,179 +500,9 @@ function CopyButton({ tone = "dark", value }: { tone?: "dark" | "light"; value: 
 function ToolKindBadge({ kind, tone = "dark" }: { kind: string; tone?: "dark" | "light" }) {
   const className =
     tone === "light"
-      ? "rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] font-semibold text-slate-600"
+      ? "rounded-full border border-white/10 bg-white/[0.04] px-2 py-0.5 text-[11px] font-semibold text-zinc-400"
       : "rounded-full border border-blue-500/25 bg-blue-500/10 px-2 py-0.5 text-[11px] font-semibold text-blue-200";
   return <span className={className}>{kind}</span>;
-}
-
-function ScreenshotPreview({ screenshot }: { screenshot: ScreenshotPayload }) {
-  return (
-    <div className="mt-3 overflow-hidden rounded-md border border-slate-200 bg-white">
-      <img
-        alt="浏览器截图"
-        className="max-h-64 w-full object-contain"
-        src={`data:${screenshot.mime_type};base64,${screenshot.base64_data}`}
-      />
-      <div className="border-t border-slate-200 px-3 py-2 text-xs text-slate-500">
-        {screenshot.mime_type} · {screenshot.size} bytes
-      </div>
-    </div>
-  );
-}
-
-function SearchResultsPreview({ results }: { results: SearchResultsPayload }) {
-  return (
-    <div className="mt-3 rounded-md border border-slate-200 bg-white">
-      <div className="border-b border-slate-200 px-3 py-2">
-        <div className="text-xs font-medium text-slate-500">搜索结果</div>
-        <div className="mt-1 text-sm font-semibold text-slate-950">{results.query}</div>
-        <div className="mt-1 text-xs text-slate-500">provider: {results.provider}</div>
-      </div>
-      <div className="grid gap-2 p-3">
-        {results.items.map((item) => (
-          <a
-            className="block rounded-md border border-slate-200 px-3 py-2 transition hover:border-slate-300 hover:bg-slate-50"
-            href={item.url}
-            key={`${item.title}-${item.url}`}
-            rel="noreferrer"
-            target="_blank"
-          >
-            <div className="line-clamp-1 text-sm font-semibold text-slate-950">
-              {item.title || item.url}
-            </div>
-            <div className="mt-1 line-clamp-1 text-xs text-sky-700">{item.url}</div>
-            <p className="mt-1 line-clamp-2 text-xs leading-5 text-slate-600">
-              {item.snippet || "暂无摘要"}
-            </p>
-          </a>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function McpResultPreview({ result }: { result: McpToolResultPayload }) {
-  return (
-    <div className="mt-3 rounded-md border border-slate-200 bg-white">
-      <div className="border-b border-slate-200 px-3 py-2">
-        <div className="text-xs font-medium text-slate-500">MCP 工具结果</div>
-        <div className="mt-1 text-sm font-semibold text-slate-950">
-          {result.server_name}.{result.tool_name}
-        </div>
-      </div>
-      <div className="grid gap-3 p-3">
-        <div>
-          <div className="mb-1 text-xs font-medium text-slate-500">MCP 参数</div>
-          <pre className="max-h-28 overflow-auto rounded-md bg-slate-50 p-2 text-[11px] leading-5 text-slate-600">
-            {JSON.stringify(result.arguments, null, 2)}
-          </pre>
-        </div>
-        <div>
-          <div className="mb-1 text-xs font-medium text-slate-500">MCP 返回内容</div>
-          <pre className="max-h-40 overflow-auto rounded-md bg-slate-50 p-2 text-[11px] leading-5 whitespace-pre-wrap text-slate-700">
-            {JSON.stringify(result.content, null, 2)}
-          </pre>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function A2aResultPreview({ result }: { result: A2aTaskResultPayload }) {
-  // 这个组件只负责展示 A2A 工具结果。
-  // 数据已经在 parseA2aTaskResult 中做过结构检查，所以这里可以直接渲染。
-  return (
-    <div className="mt-3 rounded-md border border-slate-200 bg-white">
-      <div className="border-b border-slate-200 px-3 py-2">
-        <div className="text-xs font-medium text-slate-500">A2A 远程 Agent</div>
-        <div className="mt-1 text-sm font-semibold text-slate-950">{result.remote_agent}</div>
-        <div className="mt-1 text-xs text-slate-500">
-          {result.agent_key} · {result.task_id} · {result.status}
-        </div>
-      </div>
-      <div className="grid gap-3 p-3">
-        <div>
-          <div className="mb-1 text-xs font-medium text-slate-500">远程输出</div>
-          <div className="rounded-md bg-slate-50 p-2 text-xs leading-5 text-slate-700">
-            {result.output_message.map((part) => part.text).join("\n") || "暂无输出"}
-          </div>
-        </div>
-        <div>
-          <div className="mb-1 text-xs font-medium text-slate-500">协作步骤</div>
-          <div className="grid gap-2">
-            {result.steps.map((step) => (
-              <div
-                className="rounded-md border border-slate-200 bg-slate-50 px-2 py-1.5"
-                key={`${step.index}-${step.action}`}
-              >
-                <div className="text-xs font-semibold text-slate-900">
-                  {step.index}. {step.action}
-                </div>
-                <p className="mt-1 text-xs leading-5 text-slate-600">{step.detail}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function MultiAgentResultPreview({ result }: { result: MultiAgentResultPayload }) {
-  // 这个组件展示 Manager / Worker / Reviewer 的协作结果。
-  // 数据已经经过 parseMultiAgentResult 检查，因此这里只负责布局。
-  return (
-    <div className="mt-3 rounded-md border border-slate-200 bg-white">
-      <div className="border-b border-slate-200 px-3 py-2">
-        <div className="text-xs font-medium text-slate-500">多 Agent 协作</div>
-        <div className="mt-1 text-sm font-semibold text-slate-950">{result.manager}</div>
-        <p className="mt-1 text-xs leading-5 text-slate-500">{result.task}</p>
-      </div>
-      <div className="grid gap-3 p-3">
-        <div>
-          <div className="mb-1 text-xs font-medium text-slate-500">子任务分派</div>
-          <div className="grid gap-2">
-            {result.subtasks.map((subtask) => (
-              <div
-                className="rounded-md border border-slate-200 bg-slate-50 px-2 py-1.5"
-                key={subtask.id}
-              >
-                <div className="flex items-center justify-between gap-2 text-xs">
-                  <span className="font-semibold text-slate-900">{subtask.title}</span>
-                  <span className="text-slate-500">{subtask.status}</span>
-                </div>
-                <p className="mt-1 text-xs text-slate-500">{subtask.assignee}</p>
-                <p className="mt-1 text-xs leading-5 text-slate-700">{subtask.output}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-        <div className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2">
-          <div className="text-xs font-semibold text-emerald-800">
-            {result.review.reviewer} · {result.review.status}
-          </div>
-          <ul className="mt-1 list-inside list-disc text-xs leading-5 text-emerald-700">
-            {result.review.comments.map((comment) => (
-              <li key={comment}>{comment}</li>
-            ))}
-          </ul>
-          <p className="mt-1 text-xs leading-5 text-emerald-700">{result.review.improvement}</p>
-        </div>
-        <pre className="max-h-48 overflow-auto rounded-md bg-slate-50 p-3 text-xs leading-5 whitespace-pre-wrap text-slate-700">
-          {result.final_answer}
-        </pre>
-      </div>
-    </div>
-  );
-}
-
-function EmptyState({ icon: Icon, text }: { icon: typeof Bot; text: string }) {
-  return (
-    <div className="flex items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-500">
-      <Icon size={16} aria-hidden="true" />
-      <span>{text}</span>
-    </div>
-  );
 }
 
 function PlainToolPreview({ output, title }: { output: string; title: string }) {
@@ -641,6 +550,206 @@ function ShellOutputPreview({ output }: { output: string }) {
   );
 }
 
+function ScreenshotPreview({ screenshot }: { screenshot: ScreenshotPayload }) {
+  return (
+    <div className="mt-3 overflow-hidden rounded-2xl border border-white/10 bg-white/[0.035]">
+      <img
+        alt="浏览器截图"
+        className="max-h-64 w-full object-contain"
+        src={`data:${screenshot.mime_type};base64,${screenshot.base64_data}`}
+      />
+      <div className="border-t border-white/10 px-3 py-2 text-xs text-zinc-500">
+        {screenshot.mime_type} · {screenshot.size} bytes
+      </div>
+    </div>
+  );
+}
+
+function SearchResultsPreview({ results }: { results: SearchResultsPayload }) {
+  return (
+    <div className="mt-3 rounded-2xl border border-white/10 bg-white/[0.035]">
+      <div className="border-b border-white/10 px-3 py-2">
+        <div className="text-xs font-medium text-zinc-500">搜索结果</div>
+        <div className="mt-1 text-sm font-semibold text-zinc-50">{results.query}</div>
+        <div className="mt-1 text-xs text-zinc-500">provider: {results.provider}</div>
+      </div>
+      <div className="grid gap-2 p-3">
+        {results.items.map((item) => (
+          <a
+            className="block rounded-md border border-white/10 px-3 py-2 transition hover:border-blue-500/40 hover:bg-white/[0.04]"
+            href={item.url}
+            key={`${item.title}-${item.url}`}
+            rel="noreferrer"
+            target="_blank"
+          >
+            <div className="line-clamp-1 text-sm font-semibold text-zinc-50">
+              {item.title || item.url}
+            </div>
+            <div className="mt-1 line-clamp-1 text-xs text-blue-300">{item.url}</div>
+            <p className="mt-1 line-clamp-2 text-xs leading-5 text-zinc-400">
+              {item.snippet || "暂无摘要"}
+            </p>
+          </a>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function SearchErrorPreview({ error }: { error: SearchErrorPayload }) {
+  return (
+    <div className="mt-3 rounded-2xl border border-amber-500/20 bg-amber-500/10 p-4">
+      <div className="text-xs font-medium tracking-[0.14em] text-amber-300 uppercase">
+        搜索暂不可用
+      </div>
+      <div className="mt-2 text-sm font-semibold text-zinc-50">{error.query}</div>
+      <p className="mt-2 text-sm leading-6 text-amber-100/80">
+        {error.message || "搜索页面暂时无法访问，请稍后重试。"}
+      </p>
+      <div className="mt-3 text-xs text-amber-200/70">provider: {error.provider}</div>
+    </div>
+  );
+}
+
+function McpResultPreview({ result }: { result: McpToolResultPayload }) {
+  return (
+    <div className="mt-3 rounded-2xl border border-white/10 bg-white/[0.035]">
+      <div className="border-b border-white/10 px-3 py-2">
+        <div className="text-xs font-medium text-zinc-500">MCP 工具结果</div>
+        <div className="mt-1 text-sm font-semibold text-zinc-50">
+          {result.server_name}.{result.tool_name}
+        </div>
+      </div>
+      <div className="grid gap-3 p-3">
+        <div>
+          <div className="mb-1 text-xs font-medium text-zinc-500">MCP 参数</div>
+          <div className="grid gap-2">
+            {getArgumentEntries(result.arguments).map(([key, value]) => (
+              <div
+                className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-xs text-zinc-300"
+                key={key}
+              >
+                <span className="font-semibold text-zinc-500">{key}：</span>
+                {formatArgumentValue(value)}
+              </div>
+            ))}
+          </div>
+        </div>
+        <div>
+          <div className="mb-1 text-xs font-medium text-zinc-500">MCP 返回内容</div>
+          <div className="grid max-h-56 gap-2 overflow-auto">
+            {result.content.map((item, index) => (
+              <div
+                className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-xs leading-5 text-zinc-300"
+                key={`${result.tool_name}-${index}`}
+              >
+                {renderMcpContentItem(item)}
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function A2aResultPreview({ result }: { result: A2aTaskResultPayload }) {
+  // 这个组件只负责展示 A2A 工具结果。
+  // 数据已经在 parseA2aTaskResult 中做过结构检查，所以这里可以直接渲染。
+  return (
+    <div className="mt-3 rounded-2xl border border-white/10 bg-white/[0.035]">
+      <div className="border-b border-white/10 px-3 py-2">
+        <div className="text-xs font-medium text-zinc-500">A2A 远程 Agent</div>
+        <div className="mt-1 text-sm font-semibold text-zinc-50">{result.remote_agent}</div>
+        <div className="mt-1 text-xs text-zinc-500">
+          {result.agent_key} · {result.task_id} · {result.status}
+        </div>
+      </div>
+      <div className="grid gap-3 p-3">
+        <div>
+          <div className="mb-1 text-xs font-medium text-zinc-500">远程输出</div>
+          <div className="rounded-md bg-white/[0.04] p-2 text-xs leading-5 text-zinc-300">
+            {result.output_message.map((part) => part.text).join("\n") || "暂无输出"}
+          </div>
+        </div>
+        <div>
+          <div className="mb-1 text-xs font-medium text-zinc-500">协作步骤</div>
+          <div className="grid gap-2">
+            {result.steps.map((step) => (
+              <div
+                className="rounded-md border border-white/10 bg-white/[0.04] px-2 py-1.5"
+                key={`${step.index}-${step.action}`}
+              >
+                <div className="text-xs font-semibold text-zinc-100">
+                  {step.index}. {step.action}
+                </div>
+                <p className="mt-1 text-xs leading-5 text-zinc-400">{step.detail}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function MultiAgentResultPreview({ result }: { result: MultiAgentResultPayload }) {
+  // 这个组件展示 Manager / Worker / Reviewer 的协作结果。
+  // 数据已经经过 parseMultiAgentResult 检查，因此这里只负责布局。
+  return (
+    <div className="mt-3 rounded-2xl border border-white/10 bg-white/[0.035]">
+      <div className="border-b border-white/10 px-3 py-2">
+        <div className="text-xs font-medium text-zinc-500">多 Agent 协作</div>
+        <div className="mt-1 text-sm font-semibold text-zinc-50">{result.manager}</div>
+        <p className="mt-1 text-xs leading-5 text-zinc-500">{result.task}</p>
+      </div>
+      <div className="grid gap-3 p-3">
+        <div>
+          <div className="mb-1 text-xs font-medium text-zinc-500">子任务分派</div>
+          <div className="grid gap-2">
+            {result.subtasks.map((subtask) => (
+              <div
+                className="rounded-md border border-white/10 bg-white/[0.04] px-2 py-1.5"
+                key={subtask.id}
+              >
+                <div className="flex items-center justify-between gap-2 text-xs">
+                  <span className="font-semibold text-zinc-100">{subtask.title}</span>
+                  <span className="text-zinc-500">{subtask.status}</span>
+                </div>
+                <p className="mt-1 text-xs text-zinc-500">{subtask.assignee}</p>
+                <p className="mt-1 text-xs leading-5 text-zinc-300">{subtask.output}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="rounded-md border border-emerald-500/25 bg-emerald-500/10 px-3 py-2">
+          <div className="text-xs font-semibold text-emerald-100">
+            {result.review.reviewer} · {result.review.status}
+          </div>
+          <ul className="mt-1 list-inside list-disc text-xs leading-5 text-emerald-200/80">
+            {result.review.comments.map((comment) => (
+              <li key={comment}>{comment}</li>
+            ))}
+          </ul>
+          <p className="mt-1 text-xs leading-5 text-emerald-200/80">{result.review.improvement}</p>
+        </div>
+        <pre className="max-h-48 overflow-auto rounded-md bg-white/[0.04] p-3 text-xs leading-5 whitespace-pre-wrap text-zinc-300">
+          {result.final_answer}
+        </pre>
+      </div>
+    </div>
+  );
+}
+
+function EmptyState({ icon: Icon, text }: { icon: typeof Bot; text: string }) {
+  return (
+    <div className="flex items-center gap-2 rounded-md border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-zinc-500">
+      <Icon size={16} aria-hidden="true" />
+      <span>{text}</span>
+    </div>
+  );
+}
+
 function getToolEvents(state: LoadState<SessionEventItem[]>): SessionEventItem[] {
   if (state.type !== "ready") {
     return [];
@@ -653,7 +762,7 @@ function getToolEvents(state: LoadState<SessionEventItem[]>): SessionEventItem[]
 function getToolIcon(
   toolName: string,
   screenshot: ScreenshotPayload | null,
-  searchResults: SearchResultsPayload | null,
+  searchResults: SearchResultsPayload | SearchErrorPayload | null,
   mcpResult: McpToolResultPayload | null,
   a2aResult: A2aTaskResultPayload | null,
   multiAgentResult: MultiAgentResultPayload | null,
@@ -686,6 +795,34 @@ function getToolIcon(
     return FolderOpen;
   }
   return Hammer;
+}
+
+function getToolKind(toolName: string, output: string) {
+  if (parseScreenshot(output)) {
+    return "Browser Screenshot";
+  }
+  if (parseSearchResults(output) || parseSearchError(output) || toolName.startsWith("search_")) {
+    return "Search";
+  }
+  if (parseMcpToolResult(output) || toolName.startsWith("mcp_")) {
+    return "MCP";
+  }
+  if (parseA2aTaskResult(output) || toolName.startsWith("a2a_")) {
+    return "A2A";
+  }
+  if (parseMultiAgentResult(output) || toolName.startsWith("multi_agent_")) {
+    return "Multi-Agent";
+  }
+  if (toolName.startsWith("browser_")) {
+    return "Browser";
+  }
+  if (toolName.startsWith("shell_")) {
+    return "Shell";
+  }
+  if (toolName.startsWith("file_")) {
+    return "File";
+  }
+  return "Tool";
 }
 
 function parseScreenshot(value: string): ScreenshotPayload | null {
@@ -725,6 +862,29 @@ function parseSearchResults(value: string): SearchResultsPayload | null {
           url: parseString(item.url),
           snippet: parseString(item.snippet),
         })),
+      };
+    }
+  } catch {
+    return null;
+  }
+  return null;
+}
+
+function parseSearchError(value: string): SearchErrorPayload | null {
+  try {
+    const payload = JSON.parse(value) as Partial<SearchErrorPayload>;
+    if (
+      payload.kind === "search_error" &&
+      typeof payload.provider === "string" &&
+      typeof payload.query === "string" &&
+      typeof payload.message === "string"
+    ) {
+      return {
+        kind: "search_error",
+        provider: payload.provider,
+        query: payload.query,
+        message: payload.message,
+        items: [],
       };
     }
   } catch {
@@ -870,30 +1030,60 @@ function parseMultiAgentResult(value: string): MultiAgentResultPayload | null {
   return null;
 }
 
-function getToolKind(toolName: string, output: string) {
-  if (parseScreenshot(output)) {
-    return "Browser Screenshot";
+function buildObservationFromEvent(event: SessionEventItem): ToolObservation {
+  const title = parseString(event.payload.title) || parseString(event.payload.tool_name);
+  const syntheticStep: PlanStepView = {
+    completedAt: event.created_at,
+    description: title,
+    expected_output: "",
+    id: parseString(event.payload.step_id) || event.id,
+    startedAt: null,
+    status: "completed",
+    summary: parseString(event.payload.output),
+    title: title || "工具调用",
+    toolEvent: event,
+  };
+  return buildToolObservation(syntheticStep);
+}
+
+function getArgumentEntries(value: unknown): Array<[string, unknown]> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return [];
   }
-  if (parseSearchResults(output) || toolName.startsWith("search_")) {
-    return "Search";
+  return Object.entries(value as Record<string, unknown>);
+}
+
+function formatArgumentValue(value: unknown): string {
+  if (value === null || value === undefined || value === "") {
+    return "-";
   }
-  if (parseMcpToolResult(output) || toolName.startsWith("mcp_")) {
-    return "MCP";
+  if (typeof value === "string") {
+    return value;
   }
-  if (parseA2aTaskResult(output) || toolName.startsWith("a2a_")) {
-    return "A2A";
+  if (typeof value === "number" || typeof value === "boolean") {
+    return String(value);
   }
-  if (parseMultiAgentResult(output) || toolName.startsWith("multi_agent_")) {
-    return "Multi-Agent";
+  if (Array.isArray(value)) {
+    return value
+      .map((item) =>
+        typeof item === "string" || typeof item === "number" || typeof item === "boolean"
+          ? String(item)
+          : "结构化项",
+      )
+      .join("、");
   }
-  if (toolName.startsWith("browser_")) {
-    return "Browser";
+  return "结构化参数，已传给工具执行";
+}
+``;
+
+function renderMcpContentItem(item: Record<string, unknown>): string {
+  const text = parseString(item.text);
+  if (text) {
+    return text;
   }
-  if (toolName.startsWith("shell_")) {
-    return "Shell";
+  const type = parseString(item.type) || parseString(item.kind);
+  if (type) {
+    return `${type} 内容已返回，完整结构可通过复制工具输出查看。`;
   }
-  if (toolName.startsWith("file_")) {
-    return "File";
-  }
-  return "Tool";
+  return "MCP 返回了结构化内容，完整结构可通过复制工具输出查看。";
 }

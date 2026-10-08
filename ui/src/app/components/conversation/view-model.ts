@@ -161,7 +161,6 @@ export function buildPlanProgressView(
   if (!plan) {
     return null;
   }
-
   const steps = buildStepViews(plan, events);
 
   const completedCount = steps.filter((step) => step.status === "completed").length;

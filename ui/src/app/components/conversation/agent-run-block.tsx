@@ -1,10 +1,11 @@
 import { useMemo, useState } from "react";
 
-import { AlertCircle, Loader2, Check } from "lucide-react";
+import { AlertCircle, Check, Loader2 } from "lucide-react";
 import { buildStepViews, parseToolOutput } from "./view-model";
 import AgentAvatar from "./agent-avatar";
 import StepCard from "./step-card";
 import { parseString } from "@/utils";
+import { buildToolObservation } from "@/components/conversation/view-model";
 
 import MarkdownContent from "@/components/markdown-content";
 
@@ -81,9 +82,11 @@ export default function AgentRunBlock({
 
 function FinalAnswer({ event, steps }: { event: SessionEventItem; steps: PlanStepView[] }) {
   const failed = event.type === "task_error";
+  const eventAnswer = parseString(event.payload.final_answer);
   const firstAnswer = steps
     .map((step) => parseToolOutput(step.toolEvent))
     .find((output) => output?.final_answer)?.final_answer;
+  const fallbackAnswer = buildFallbackFinalAnswer(steps);
 
   return (
     <div className="flex gap-4">
@@ -93,15 +96,47 @@ function FinalAnswer({ event, steps }: { event: SessionEventItem; steps: PlanSte
         <div className="mt-3 rounded-[26px] border border-white/10 bg-white/[0.035] px-5 py-4 text-lg leading-9 text-zinc-300">
           {failed ? (
             parseString(event.payload.message) || "任务执行失败，请查看事件详情。"
+          ) : eventAnswer ? (
+            <MarkdownContent content={eventAnswer} />
           ) : firstAnswer ? (
             <MarkdownContent content={firstAnswer} />
           ) : (
-            "任务已完成。你可以点击步骤中的工具详情查看每次调用的输入和输出。"
+            <MarkdownContent content={fallbackAnswer} />
           )}
         </div>
       </div>
     </div>
   );
+}
+
+function buildFallbackFinalAnswer(steps: PlanStepView[]) {
+  const completedSteps = steps.filter((step) => step.status === "completed");
+  const observations = completedSteps
+    .map((step, index) => ({
+      index: index + 1,
+      observation: buildToolObservation(step),
+      step,
+    }))
+    .filter((item) => item.observation.brief);
+
+  if (!observations.length) {
+    return "任务已完成。你可以点击步骤中的工具详情查看每次调用的输入和输出。";
+  }
+
+  const lines = observations.map(({ index, observation, step }) => {
+    const pills = observation.pills.length
+      ? `  \n  相关结果：${observation.pills.slice(0, 3).join("、")}`
+      : "";
+    return `${index}. **${step.title}**：${observation.brief}${pills}`;
+  });
+
+  return [
+    "任务已完成，我按计划完成了这些步骤：",
+    "",
+    ...lines,
+    "",
+    "你可以点击每个步骤里的工具节点，在右侧查看来源、参数、截图、终端输出或协作详情。",
+  ].join("\n");
 }
 
 function StepBadge({ failed, running }: { failed: boolean; running: boolean }) {

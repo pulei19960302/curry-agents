@@ -1,5 +1,4 @@
 from collections import Counter
-
 from uuid import UUID
 
 from app.application.memory_retrieval_service import MemoryRetrievalService
@@ -23,7 +22,6 @@ class ContextEngineeringService:
         self.uow = uow  # 数据库事务
 
     # 构建当前会话上下文快照
-
     async def build_snapshot(self, session_id: UUID, *, task: str | None = None, ) -> SessionContextSnapshot:
         """读取会话数据，并转换成适合 Agent 继续执行的上下文。"""
         session = await self.uow.sessions.get(session_id)
