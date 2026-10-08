@@ -8,11 +8,7 @@ import ChatWorkspace from "./components/chat-workspace";
 import SettingsWorkspace from "./components/settings-workspace";
 import StatusBadge from "./components/status-badge";
 import useSessionWorkspace from "./hooks/use-session-workspace";
-import { fetchA2aAgentCard, fetchA2aAgents, fetchA2aConcepts } from "./lib/a2a-api";
 import { requestApi } from "./lib/api";
-import { fetchMcpServers, fetchMcpTools } from "./lib/mcp-api";
-import { fetchMultiAgentRoles } from "./lib/multi-agent-api";
-import { fetchCurrentSandbox, fetchVncStatus, waitCurrentSandbox } from "./lib/sandbox-api";
 import {
   createSettingsIntegration,
   deleteSettingsIntegration,
@@ -21,92 +17,41 @@ import {
 } from "./lib/settings-api";
 
 import type { LoadState, StatusBadgeView } from "@/types/sessions";
-import type { A2aAgentCardData, A2aRemoteAgentListData, A2aConceptsData } from "@/types/a2a";
-import type { McpServerListData, McpToolListData } from "@/types/mcp";
-import type { MultiAgentRoleListData } from "@/types/mutil-agent";
-import type { SandboxInstanceData } from "@/types/sandbox";
 import type { VncStatusData } from "@/types/vnc";
 import type { ApiStatusData, DatabaseStatusData } from "./types/api";
-import { AppSettingsData } from "./types/setting";
+import type { AppSettingsData } from "./types/setting";
+import { fetchVncStatus } from "./lib/sandbox-api";
 
 export default function Home() {
   const [activeView, setActiveView] = useState<"workspace" | "settings">("workspace");
-  // API、数据库、Sandbox 都属于工作台的基础健康状态。
-  // 它们分开保存，方便某一项失败时只让对应面板进入 error 状态。
+  // API 和数据库属于工作台的基础健康状态。
+  // VNC 只在用户点击浏览器工具详情时出现，所以这里只保留连接信息，不再渲染常驻演示面板。
   const [apiStatus, setApiStatus] = useState<LoadState<ApiStatusData>>({
     type: "loading",
   });
   const [databaseStatus, setDatabaseStatus] = useState<LoadState<DatabaseStatusData>>({
     type: "loading",
   });
-  const [sandboxStatus, setSandboxStatus] = useState<LoadState<SandboxInstanceData>>({
-    type: "loading",
-  });
   const [vncStatus, setVncStatus] = useState<LoadState<VncStatusData>>({
-    type: "loading",
-  });
-  const [mcpServers, setMcpServers] = useState<LoadState<McpServerListData>>({ type: "loading" });
-  const [mcpTools, setMcpTools] = useState<LoadState<McpToolListData>>({
-    type: "loading",
-  });
-  const [a2aConcepts, setA2aConcepts] = useState<LoadState<A2aConceptsData>>({ type: "loading" });
-  const [a2aAgentCard, setA2aAgentCard] = useState<LoadState<A2aAgentCardData>>({
-    type: "loading",
-  });
-  const [a2aAgents, setA2aAgents] = useState<LoadState<A2aRemoteAgentListData>>({
-    type: "loading",
-  });
-  const [multiAgentRoles, setMultiAgentRoles] = useState<LoadState<MultiAgentRoleListData>>({
     type: "loading",
   });
   const [appSettings, setAppSettings] = useState<LoadState<AppSettingsData>>({
     type: "loading",
   });
-  const [sandboxRefreshing, setSandboxRefreshing] = useState(false);
   const workspace = useSessionWorkspace();
 
   async function loadStatus() {
-    // 页面初始化时一次性读取三类状态：
-    // 1. API 自身是否运行
-    // 2. 数据库是否可连接
-    // 3. 当前任务沙箱是否可用
-    // 这里请求的是主 API 暴露的 /api/sandboxes/current，
-    // 前端不直接访问 sandbox-api，避免把内部服务地址暴露给浏览器。
-    const [
-      apiData,
-      databaseData,
-      sandboxData,
-      vncData,
-      mcpServerData,
-      mcpToolData,
-      a2aConceptData,
-      a2aCardData,
-      a2aAgentData,
-      multiAgentRoleData,
-      appSettingsData,
-    ] = await Promise.all([
+    // 工作台首页不再加载 MCP、A2A、多 Agent 等演示数据。那些配置属于设置页，
+    // 真实对话区只关心 API/数据库健康、VNC 连接信息和应用设置。
+    const [apiData, databaseData, vncData, appSettingsData] = await Promise.all([
       requestApi<ApiStatusData>("/api/status"),
       requestApi<DatabaseStatusData>("/api/status/database"),
-      fetchCurrentSandbox(),
       fetchVncStatus(),
-      fetchMcpServers(),
-      fetchMcpTools(),
-      fetchA2aConcepts(),
-      fetchA2aAgentCard(),
-      fetchA2aAgents(),
-      fetchMultiAgentRoles(),
       fetchAppSettings(),
     ]);
     setApiStatus({ type: "ready", data: apiData });
     setDatabaseStatus({ type: "ready", data: databaseData });
-    setSandboxStatus({ type: "ready", data: sandboxData });
     setVncStatus({ type: "ready", data: vncData });
-    setMcpServers({ type: "ready", data: mcpServerData });
-    setMcpTools({ type: "ready", data: mcpToolData });
-    setA2aConcepts({ type: "ready", data: a2aConceptData });
-    setA2aAgentCard({ type: "ready", data: a2aCardData });
-    setA2aAgents({ type: "ready", data: a2aAgentData });
-    setMultiAgentRoles({ type: "ready", data: multiAgentRoleData });
     setAppSettings({ type: "ready", data: appSettingsData });
   }
 
@@ -125,22 +70,6 @@ export default function Home() {
         current.type === "loading" ? { type: "error", message } : current,
       );
       setVncStatus((current) =>
-        current.type === "loading" ? { type: "error", message } : current,
-      );
-      setMcpServers((current) =>
-        current.type === "loading" ? { type: "error", message } : current,
-      );
-      setMcpTools((current) => (current.type === "loading" ? { type: "error", message } : current));
-      setA2aConcepts((current) =>
-        current.type === "loading" ? { type: "error", message } : current,
-      );
-      setA2aAgentCard((current) =>
-        current.type === "loading" ? { type: "error", message } : current,
-      );
-      setA2aAgents((current) =>
-        current.type === "loading" ? { type: "error", message } : current,
-      );
-      setMultiAgentRoles((current) =>
         current.type === "loading" ? { type: "error", message } : current,
       );
       setAppSettings((current) =>
@@ -162,32 +91,10 @@ export default function Home() {
       const message = error instanceof Error ? error.message : "unknown error";
       setApiStatus({ type: "error", message });
       setDatabaseStatus({ type: "error", message });
-      setSandboxStatus({ type: "error", message });
       setVncStatus({ type: "error", message });
-      setMcpServers({ type: "error", message });
-      setMcpTools({ type: "error", message });
-      setA2aConcepts({ type: "error", message });
-      setA2aAgentCard({ type: "error", message });
-      setA2aAgents({ type: "error", message });
-      setMultiAgentRoles({ type: "error", message });
       setAppSettings({ type: "error", message });
     });
   }, []);
-
-  async function refreshSandbox() {
-    // 任务沙箱刷新按钮不只是重新读取状态，而是调用 wait 接口等待它变健康。
-    // 这样 Docker 刚启动、Sandbox 还在初始化时，用户点刷新有机会直接等到 ready。
-    setSandboxRefreshing(true);
-    try {
-      const sandbox = await waitCurrentSandbox();
-      setSandboxStatus({ type: "ready", data: sandbox });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "unknown error";
-      setSandboxStatus({ type: "error", message });
-    } finally {
-      setSandboxRefreshing(false);
-    }
-  }
 
   async function refreshVnc() {
     setVncStatus({ type: "loading" });
@@ -197,52 +104,6 @@ export default function Home() {
     } catch (error) {
       const message = error instanceof Error ? error.message : "unknown error";
       setVncStatus({ type: "error", message });
-    }
-  }
-
-  async function refreshMcp() {
-    setMcpServers({ type: "loading" });
-    setMcpTools({ type: "loading" });
-    try {
-      const [servers, tools] = await Promise.all([fetchMcpServers(), fetchMcpTools()]);
-      setMcpServers({ type: "ready", data: servers });
-      setMcpTools({ type: "ready", data: tools });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "unknown error";
-      setMcpServers({ type: "error", message });
-      setMcpTools({ type: "error", message });
-    }
-  }
-
-  async function refreshA2a() {
-    setA2aConcepts({ type: "loading" });
-    setA2aAgentCard({ type: "loading" });
-    setA2aAgents({ type: "loading" });
-    try {
-      const [concepts, agentCard, agents] = await Promise.all([
-        fetchA2aConcepts(),
-        fetchA2aAgentCard(),
-        fetchA2aAgents(),
-      ]);
-      setA2aConcepts({ type: "ready", data: concepts });
-      setA2aAgentCard({ type: "ready", data: agentCard });
-      setA2aAgents({ type: "ready", data: agents });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "unknown error";
-      setA2aConcepts({ type: "error", message });
-      setA2aAgentCard({ type: "error", message });
-      setA2aAgents({ type: "error", message });
-    }
-  }
-
-  async function refreshMultiAgent() {
-    setMultiAgentRoles({ type: "loading" });
-    try {
-      const roles = await fetchMultiAgentRoles();
-      setMultiAgentRoles({ type: "ready", data: roles });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "unknown error";
-      setMultiAgentRoles({ type: "error", message });
     }
   }
 
@@ -341,9 +202,6 @@ export default function Home() {
           >
             {activeView === "workspace" ? (
               <ChatWorkspace
-                a2aAgentCard={a2aAgentCard}
-                a2aAgents={a2aAgents}
-                a2aConcepts={a2aConcepts}
                 attachments={workspace.attachments}
                 clearingUnread={workspace.clearingUnread}
                 context={workspace.context}
@@ -355,11 +213,7 @@ export default function Home() {
                 onClearUnread={workspace.clearUnread}
                 onDraftChange={workspace.setDraft}
                 onPreviewFile={workspace.loadFilePreview}
-                onRefreshA2a={refreshA2a}
                 onRefreshContext={refreshContext}
-                onRefreshMcp={refreshMcp}
-                onRefreshMultiAgent={refreshMultiAgent}
-                onRefreshSandbox={refreshSandbox}
                 onRefreshVnc={refreshVnc}
                 onSend={workspace.sendMessage}
                 onSelectFile={workspace.selectFile}
@@ -369,11 +223,6 @@ export default function Home() {
                 plan={workspace.latestPlan}
                 planning={workspace.planning}
                 task={workspace.currentTask}
-                mcpServers={mcpServers}
-                mcpTools={mcpTools}
-                multiAgentRoles={multiAgentRoles}
-                sandbox={sandboxStatus}
-                sandboxRefreshing={sandboxRefreshing}
                 vnc={vncStatus}
                 selectedFile={workspace.selectedFile}
                 selectedSession={workspace.selectedSession}

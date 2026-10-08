@@ -13,10 +13,12 @@ import {
 
 import type { PlanStepView } from "./types";
 import {
+  buildToolObservation,
   buildToolPills,
   getRunningCopy,
   getStatusClass,
   getStatusLabel,
+  getStepDisplaySummary,
   parseToolOutput,
 } from "./view-model";
 
@@ -42,6 +44,9 @@ export default function StepCard({
   const failed = step.status === "failed";
   const output = parseToolOutput(step.toolEvent);
   const toolPills = buildToolPills(step, output);
+
+  const observation = buildToolObservation(step);
+
   const [expanded, setExpanded] = useState(running || highlighted);
   const showToolSection = expanded && (running || completed || Boolean(step.toolEvent));
 
@@ -89,11 +94,7 @@ export default function StepCard({
               <Maximize2 className="shrink-0 text-zinc-600" size={14} aria-hidden="true" />
             </div>
             <p className="mt-2 line-clamp-2 text-sm leading-6 break-all text-zinc-400">
-              {running
-                ? getRunningCopy(step)
-                : completed
-                  ? step.summary || step.expected_output || "步骤已完成。"
-                  : step.description}
+              {getStepDisplaySummary(step)}
             </p>
           </button>
           <div className="flex shrink-0 items-center gap-2">
@@ -122,7 +123,7 @@ export default function StepCard({
                 size={16}
                 aria-hidden="true"
               />
-              {running ? "正在使用工具" : "工具调用完成"}
+              {running ? "正在使用工具" : observation.title}
             </div>
             <div className="grid gap-2">
               {toolPills.map((label) => (

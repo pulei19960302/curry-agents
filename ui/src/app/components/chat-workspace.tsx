@@ -20,18 +20,11 @@ import type {
   SessionItem,
   AgentTaskItem,
 } from "@/types/sessions";
-import type { A2aAgentCardData, A2aRemoteAgentListData, A2aConceptsData } from "@/types/a2a";
 import type { FilePreviewData } from "@/types/files";
-import type { McpServerListData, McpToolListData } from "@/types/mcp";
-import type { MultiAgentRoleListData } from "@/types/mutil-agent";
-import type { SandboxInstanceData } from "@/types/sandbox";
 import type { VncStatusData } from "@/types/vnc";
 import type { AgentPlan } from "@/types/planner";
 
 type ChatWorkspaceProps = {
-  a2aAgentCard: LoadState<A2aAgentCardData>;
-  a2aAgents: LoadState<A2aRemoteAgentListData>;
-  a2aConcepts: LoadState<A2aConceptsData>;
   attachments: SessionFileItem[];
   draft: string;
   clearingUnread: boolean;
@@ -42,23 +35,14 @@ type ChatWorkspaceProps = {
   messages: LoadState<ChatMessage[]>;
   onClearUnread: () => void;
   onRefreshContext: () => void;
-  onRefreshMcp: () => void;
-  onRefreshMultiAgent: () => void;
-  onRefreshSandbox: () => void;
   onRefreshVnc: () => void;
   onDraftChange: (value: string) => void;
   onPreviewFile: (fileId: string) => void;
-  onRefreshA2a: () => void;
   onSend: () => void;
   onSelectFile: (file: SessionFileItem | null) => void;
   onStop: () => void;
   onUploadFile: (file: File) => void;
   selectedFile: SessionFileItem | null;
-  mcpServers: LoadState<McpServerListData>;
-  mcpTools: LoadState<McpToolListData>;
-  multiAgentRoles: LoadState<MultiAgentRoleListData>;
-  sandbox: LoadState<SandboxInstanceData>;
-  sandboxRefreshing: boolean;
   vnc: LoadState<VncStatusData>;
   selectedSession: SessionItem | null;
   plan: AgentPlan | null;
@@ -71,9 +55,6 @@ type ChatWorkspaceProps = {
 };
 
 export default function ChatWorkspace({
-  a2aAgentCard,
-  a2aAgents,
-  a2aConcepts,
   attachments,
   clearingUnread,
   context,
@@ -84,23 +65,14 @@ export default function ChatWorkspace({
   messages,
   onClearUnread,
   onRefreshContext,
-  onRefreshMcp,
-  onRefreshMultiAgent,
-  onRefreshSandbox,
   onRefreshVnc,
   onDraftChange,
   onPreviewFile,
-  onRefreshA2a,
   onSend,
   onSelectFile,
   onStop,
   onUploadFile,
   selectedFile,
-  mcpServers,
-  mcpTools,
-  multiAgentRoles,
-  sandbox,
-  sandboxRefreshing,
   vnc,
   selectedSession,
   plan,

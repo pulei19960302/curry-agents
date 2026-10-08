@@ -5,6 +5,7 @@ import type {
   TimelineItem,
   PlanStepView,
   MultiAgentInlineResult,
+  ToolObservation,
 } from "@/components/conversation/types";
 import { parseString } from "@/utils";
 
@@ -188,10 +189,130 @@ export function buildToolPills(
   step: PlanStepView,
   output: MultiAgentInlineResult | null,
 ): string[] {
+  const observation = buildToolObservation(step);
+  if (observation.pills.length) {
+    return observation.pills;
+  }
   if (output?.subtasks.length) {
     return output.subtasks.slice(0, 3).map((subtask) => subtask.title);
   }
   return [`正在处理 ${step.title}`, step.expected_output || step.description || "整理任务结果"];
+}
+
+export function buildToolObservation(step: PlanStepView): ToolObservation {
+  const toolEvent = step.toolEvent;
+  const toolName = parseString(toolEvent?.payload.tool_name);
+  const output = parseString(toolEvent?.payload.output);
+
+  if (toolEvent?.id) {
+    return {
+      title: "等待工具调用",
+      brief: step.description || step.expected_output || "这个步骤还没有开始调用工具。",
+      pills: [],
+    };
+  }
+  const parsed = parseJsonObject(output);
+  if (parsed?.kind === "search_results") {
+    const query = parseString(parsed.query);
+    const items = Array.isArray(parsed.items) ? parsed.items : [];
+    const titles = items
+      .map((item) => parseString((item as Record<string, unknown>).title))
+      .filter(Boolean)
+      .slice(0, 3);
+    return {
+      title: "搜索完成",
+      brief: `已搜索“${query || step.title}”，找到 ${items.length} 条候选结果。`,
+      pills: titles.length ? titles : ["查看搜索结果"],
+    };
+  }
+
+  if (parsed?.kind === "browser_screenshot") {
+    const size = Number(parsed.size || 0);
+    const sizeKb = size > 0 ? `${Math.round(size / 1024)} KB` : "未知大小";
+    return {
+      title: "浏览器截图完成",
+      brief: `已截取当前浏览器页面截图，图片大小约 ${sizeKb}。`,
+      pills: ["查看截图", "打开远程桌面"],
+    };
+  }
+
+  if (parsed?.kind === "mcp_tool_result") {
+    const serverName = parseString(parsed.server_name);
+    const mcpToolName = parseString(parsed.tool_name);
+    return {
+      title: "MCP 工具返回结果",
+      brief: `已调用 ${serverName || "MCP Server"} 的 ${mcpToolName || "工具"}。`,
+      pills: ["查看 MCP 输出"],
+    };
+  }
+
+  if (parsed?.kind === "a2a_task_result") {
+    const remoteAgent = parseString(parsed.remote_agent);
+    const status = parseString(parsed.status);
+    return {
+      title: "远程 Agent 返回结果",
+      brief: `${remoteAgent || "远程 Agent"} 已返回任务状态：${status || "unknown"}。`,
+      pills: ["查看协作步骤", "查看远程输出"],
+    };
+  }
+
+  if (parsed?.kind === "multi_agent_result") {
+    const result = parseToolOutput(toolEvent);
+    const subtasks = result?.subtasks.slice(0, 3).map((item) => item.title) ?? [];
+    return {
+      title: "多 Agent 协作完成",
+      brief: result?.final_answer
+        ? trimText(result.final_answer, 110)
+        : `已完成 ${result?.subtasks.length ?? 0} 个子任务协作。`,
+      pills: subtasks.length ? subtasks : ["查看协作结果"],
+    };
+  }
+
+  if (toolName.startsWith("shell_")) {
+    const returnCode = matchLineValue(output, "退出码");
+    const command = matchLineValue(output, "命令");
+    return {
+      title: "Shell 命令执行完成",
+      brief: `命令${command ? `“${command}”` : ""}已返回，退出码 ${returnCode || "未知"}。`,
+      pills: ["查看终端输出"],
+    };
+  }
+
+  if (toolName.startsWith("browser_")) {
+    const pageTitle = matchLineValue(output, "页面标题");
+    const currentUrl = matchLineValue(output, "页面已打开") || matchLineValue(output, "当前地址");
+    return {
+      title: "浏览器操作完成",
+      brief: pageTitle
+        ? `页面标题：${pageTitle}`
+        : currentUrl
+          ? `浏览器已打开：${currentUrl}`
+          : "浏览器工具已返回结果。",
+      pills: ["查看浏览器详情"],
+    };
+  }
+
+  if (toolName.startsWith("file_")) {
+    return {
+      title: "文件工具完成",
+      brief: firstUsefulLine(output) || "文件工具已返回结果。",
+      pills: ["查看文件输出"],
+    };
+  }
+
+  if (parsed) {
+    return {
+      title: "结构化工具结果",
+      brief: "工具已返回结构化数据，点击右侧详情查看整理后的内容。",
+      pills: ["查看工具详情"],
+    };
+  }
+
+  return {
+    title: getToolDisplayName(toolName),
+    brief: firstUsefulLine(output) || "工具已返回结果。",
+    pills: ["查看工具详情"],
+  };
 }
 
 export function getRunningCopy(step: PlanStepView): string {
@@ -245,4 +366,85 @@ export function getStatusLabel(status: string) {
     return "停止";
   }
   return "待处理";
+}
+
+export function getStepDisplaySummary(step: PlanStepView) {
+  if (step.status === "running") {
+    return getRunningCopy(step);
+  }
+  if (step.status === "completed") {
+    return buildToolObservation(step).brief || step.expected_output || "步骤已完成。";
+  }
+  if (step.status === "failed") {
+    return "步骤执行失败，请查看任务错误或工具详情。";
+  }
+  return step.description || step.expected_output || "等待执行。";
+}
+
+function parseJsonObject(value: string): Record<string, unknown> | null {
+  if (!value.trim().startsWith("{")) {
+    return null;
+  }
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed)
+      ? (parsed as Record<string, unknown>)
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+function matchLineValue(value: string, label: string) {
+  const line = value.split("\n").find((item) => item.trim().startsWith(`${label}：`));
+  return line ? line.split("：").slice(1).join("：").trim() : "";
+}
+
+function firstUsefulLine(value: string) {
+  return trimText(
+    value
+      .split("\n")
+      .map((line) => line.trim())
+      .find((line) => line && !line.includes('"kind"')) || "",
+    120,
+  );
+}
+
+function trimText(value: string, maxLength: number) {
+  const cleanValue = value.replace(/\s+/g, " ").trim();
+  if (cleanValue.length <= maxLength) {
+    return cleanValue;
+  }
+  return `${cleanValue.slice(0, maxLength)}...`;
+}
+
+function getToolDisplayName(toolName: string) {
+  if (toolName === "search_web") {
+    return "搜索工具";
+  }
+  if (toolName === "browser_open") {
+    return "浏览器打开网页";
+  }
+  if (toolName === "browser_screenshot") {
+    return "浏览器截图";
+  }
+  if (toolName.startsWith("browser_")) {
+    return "浏览器工具";
+  }
+  if (toolName.startsWith("shell_")) {
+    return "Shell 工具";
+  }
+  if (toolName.startsWith("file_")) {
+    return "文件工具";
+  }
+  if (toolName.startsWith("mcp_")) {
+    return "MCP 工具";
+  }
+  if (toolName.startsWith("a2a_")) {
+    return "远程 Agent 工具";
+  }
+  if (toolName.startsWith("multi_agent_")) {
+    return "多 Agent 协作";
+  }
+  return toolName || "工具";
 }

@@ -2,7 +2,7 @@ import { X } from "lucide-react";
 import { useEffect, useMemo, type ReactNode } from "react";
 
 import type { PlanStepView } from "./types";
-import { getStatusLabel } from "./view-model";
+import { buildToolObservation, getStatusLabel } from "./view-model";
 import { parseString } from "@/utils";
 import { formatDateTime } from "@/lib/format";
 
@@ -18,7 +18,7 @@ export default function StepDetailDialog({
   step,
 }: StepDetailDialogProps) {
   const toolName = parseString(step.toolEvent?.payload.tool_name);
-  const toolOutput = parseString(step.toolEvent?.payload.output);
+  const observation = buildToolObservation(step);
 
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
@@ -92,9 +92,22 @@ export default function StepDetailDialog({
                       打开右侧工具详情
                     </button>
                   </div>
-                  <pre className="line-clamp-2 max-h-56 overflow-auto rounded-2xl border border-white/10 bg-black/40 p-4 text-xs leading-5 break-all whitespace-pre-wrap text-zinc-400">
-                    {toolOutput || "<no output>"}
-                  </pre>
+                  <div className="rounded-2xl border border-white/10 bg-black/30 p-4">
+                    <div className="text-sm font-semibold text-zinc-100">{observation.title}</div>
+                    <p className="mt-2 text-sm leading-6 text-zinc-400">{observation.brief}</p>
+                    {observation.pills.length ? (
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {observation.pills.map((label) => (
+                          <span
+                            className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs font-medium text-zinc-400"
+                            key={label}
+                          >
+                            {label}
+                          </span>
+                        ))}
+                      </div>
+                    ) : null}
+                  </div>
                 </div>
               ) : (
                 "这个步骤暂时没有工具调用。"

@@ -1,6 +1,5 @@
-from asyncio import CancelledError, sleep
-
 import re
+from asyncio import CancelledError
 from collections.abc import AsyncIterator
 from uuid import UUID
 
@@ -324,7 +323,6 @@ class ReActAgentService:
                     },
                 )
                 await self.uow.commit()
-                await sleep(0.5)
                 yield tool_call_event
 
                 # 判断session 状态是不是停止

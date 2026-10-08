@@ -48,3 +48,9 @@ export type AgentRunViewModel = {
   latestPlan: AgentPlan | null;
   timelineItems: TimelineItem[];
 };
+
+export type ToolObservation = {
+  title: string; // 工具动作的短标题，例如“搜索完成”“浏览器截图完成”
+  brief: string; // 给主步骤卡片显示的一句话摘要
+  pills: string[]; // 步骤下方的轻量节点，例如搜索结果标题、查看截图、查看终端输出
+};

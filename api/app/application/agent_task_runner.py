@@ -17,8 +17,9 @@
 
 import asyncio
 from contextlib import suppress
-from sqlalchemy.ext.asyncio import async_sessionmaker
 from uuid import UUID
+
+from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from app.application.agent_runner_service import AgentRunnerService
 from app.application.unit_of_work import UnitOfWork
@@ -29,8 +30,6 @@ from app.infrastructure.redis_task.task_queue import RedisAgentTaskQueue, AgentT
 class AgentTaskRunner:
     """
         从 Redis Stream 消费 Agent 任务，并在后台执行。
-        第 19 章的执行接口是同步请求：浏览器要等执行结束。
-        第 20 章把执行请求拆成两段：
         1. API 只负责把任务放进 Redis Stream。2. Runner 在后台读取任务并执行。
     """
 
