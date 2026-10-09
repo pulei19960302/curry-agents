@@ -36,3 +36,25 @@ class SessionFile:
     file: FileObject
 
     created_at: datetime
+
+
+@dataclass(slots=True)
+class FileReference:
+    label: str
+    excerpt: str
+    start_line: int | None = None
+    end_line: int | None = None
+
+
+@dataclass(slots=True)
+class FilePreview:
+    file: FileObject
+    content: str
+    file_type: str
+    language: str | None
+    line_count: int
+    parse_status: str
+    parse_message: str
+    references: list[FileReference]
+    summary: str
+    truncated: bool

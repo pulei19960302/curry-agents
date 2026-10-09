@@ -8,8 +8,8 @@ version = "0.1.0"
 description = "FastAPI backend service for CurryAgent."
 requires-python = ">3.11"
 dependencies = [
-    "fastapi==0.142.4",
-    "pydantic==2.13.5",
+    "fastapi==0.143.0",
+    "pydantic==2.14.0",
     "pydantic-settings>=2.7,<3.0",
     "starlette==1.7.0",
     "uvicorn[standard]==0.54.0",
@@ -21,6 +21,7 @@ dependencies = [
     "pyyaml>=6.0.3",
     "redis==8.1.0",
     "beautifulsoup4>=4.12,<5.0",
+    "pypdf>=5,<7",
 ]
 
 [tool.setuptools.packages.find]

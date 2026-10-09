@@ -15,11 +15,9 @@ from app.application.react_agent_service import ReActAgentService
 from app.application.session_service import SessionService
 from app.application.unit_of_work import UnitOfWork
 from app.core.exceptions import AppException
-from app.domain.files.entities import SessionFile
 from app.domain.sessions.entities import Session, SessionMessage, SessionEvent
 from app.infrastructure.database.session import get_db_session
 from app.infrastructure.redis_task.task_queue import RedisAgentTaskQueue
-from app.presentation.http.routes.files import to_file_response
 from app.presentation.http.sse import encode_sse
 from app.schemas.common import ApiResponse
 from app.schemas.files import SessionFileResponse, SessionFileListResponse
@@ -107,15 +105,6 @@ def to_event_response(event: SessionEvent) -> SessionEventResponse:
         type=event.type.value,
         payload=event.payload,
         created_at=event.created_at,
-    )
-
-
-def to_session_file_response(session_file: SessionFile) -> SessionFileResponse:
-    return SessionFileResponse(
-        id=session_file.id,
-        session_id=session_file.session_id,
-        file=to_file_response(session_file.file),
-        created_at=session_file.created_at
     )
 
 
@@ -403,7 +392,7 @@ async def upload_session_file(
         content_type=upload.content_type,
     )
 
-    return ApiResponse(data=to_session_file_response(session_file))
+    return ApiResponse(data=SessionFileResponse.model_validate(session_file))
 
 
 @router.get(
@@ -417,7 +406,7 @@ async def list_session_files(
     files = await service.list_session_files(session_id)
     return ApiResponse(
         data=SessionFileListResponse(
-            items=[to_session_file_response(file) for file in files],
+            items=[SessionFileResponse.model_validate(file) for file in files],
         )
     )
 
