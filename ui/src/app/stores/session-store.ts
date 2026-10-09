@@ -1,5 +1,6 @@
 import { create } from "zustand";
 
+import { ApiRequestError } from "@/lib/api";
 import { fetchFilePreview } from "@/lib/files-api";
 import {
   clearUnread,
@@ -79,6 +80,17 @@ const initialDetailState = {
 };
 
 function getErrorMessage(error: unknown) {
+  if (error instanceof ApiRequestError) {
+    const suggestion = error.apiError?.suggestion;
+    const requestId = error.apiError?.request_id;
+    return [
+      error.message,
+      suggestion ? `建议：${suggestion}` : "",
+      requestId ? `request_id：${requestId}` : "",
+    ]
+      .filter(Boolean)
+      .join("\n");
+  }
   return error instanceof Error ? error.message : "unknown error";
 }
 

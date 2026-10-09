@@ -46,6 +46,14 @@ export default function StepCard({
   const toolPills = buildToolPills(step, output);
 
   const observation = buildToolObservation(step);
+  const errorMessage =
+    typeof step.errorEvent?.payload.user_message === "string"
+      ? step.errorEvent.payload.user_message
+      : "";
+  const errorSuggestion =
+    typeof step.errorEvent?.payload.suggestion === "string"
+      ? step.errorEvent.payload.suggestion
+      : "";
 
   const [expanded, setExpanded] = useState(running || highlighted);
   const showToolSection = expanded && (running || completed || Boolean(step.toolEvent));
@@ -140,6 +148,15 @@ export default function StepCard({
                 </button>
               ))}
             </div>
+          </div>
+        ) : null}
+
+        {failed && (errorMessage || errorSuggestion) ? (
+          <div className="ml-3 max-w-3xl rounded-xl border border-rose-500/25 bg-rose-500/10 px-4 py-3 text-sm leading-6 text-rose-100">
+            {errorMessage ? <p className="font-semibold">{errorMessage}</p> : null}
+            {errorSuggestion ? (
+              <p className="mt-1 text-rose-200/80">建议：{errorSuggestion}</p>
+            ) : null}
           </div>
         ) : null}
 

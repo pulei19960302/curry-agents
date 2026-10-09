@@ -3,7 +3,7 @@ export type ApiResponse<T> = {
   code: number;
   message: string;
   data: T | null;
-  error?: string | null;
+  error?: ApiErrorData | null;
 };
 
 // /api/status 接口返回的数据类型
@@ -14,7 +14,15 @@ export type ApiStatusData = {
   version: string;
 };
 
-
 export type DatabaseStatusData = {
   status: string;
+};
+
+export type ApiErrorData = {
+  type: string;
+  source: string;
+  user_message: string;
+  suggestion: string;
+  request_id: string | null;
+  details: Record<string, unknown> | null;
 };

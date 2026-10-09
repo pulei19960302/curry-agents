@@ -11,7 +11,7 @@ from app.application.llm_service import LLMService
 from app.application.tool_selection_service import ModelToolSelectionService
 from app.application.unit_of_work import UnitOfWork
 from app.core.config import settings
-from app.core.exceptions import AppException
+from app.core.exceptions import AppException, build_task_error_payload
 from app.domain.context_engineering.entities import MemoryContext
 from app.domain.llm.entities import LLMMessage
 from app.domain.sessions.entities import SessionEvent, SessionEventType, SessionStatus
@@ -294,11 +294,13 @@ class ReActAgentService:
         created_events: list[SessionEvent] = []
         current_step: dict | None = None
         current_index = 0
+        task_id: str | None = None
 
         try:
             for index, step in enumerate(steps, start=1):
                 current_step = step
                 current_index = index
+                task_id = step.get("id")
 
                 # 判断当前会话状态, 每一次运行步骤的时候要判断当前会话状态，如果状态不对，就停止步骤执行
                 if await self._is_stopped(session_id):
@@ -409,7 +411,8 @@ class ReActAgentService:
         except Exception as error:
             yield await self.record_task_error(
                 session_id=session_id,
-                plan_event_id=plan_event_id,
+                task_id=task_id,
+                plan_id=plan.get("id") or plan.get("plan_id"),
                 error=error,
                 current_step=current_step,
                 current_index=current_index,
@@ -688,28 +691,27 @@ class ReActAgentService:
     async def record_task_error(
             self,
             session_id: UUID,
-            plan_event_id: UUID | None,
+            task_id: str | None,
+            plan_id: str | None,
             error: Exception,
             current_step: dict | None = None,
-            current_index: int = 0,
+            current_index: int | None = None,
     ) -> SessionEvent:
         await self.uow.rollback()
 
-        payload: dict = {
-            "plan_event_id": str(plan_event_id) if plan_event_id else None,
-            "message": str(error) or "任务执行失败",
-        }
-        if current_step is not None:
-            payload.update({
-                "step_id": current_step.get("id"),
-                "index": current_index,
-                "title": current_step.get("title", ""),
-            })
+        error_payload = build_task_error_payload(
+            error,
+            session_id=session_id,
+            plan_id=plan_id,
+            task_id=task_id,
+            step=current_step,
+            step_index=current_index,
+        )
 
         event = await self.uow.session_event.add(
             session_id=session_id,
             event_type=SessionEventType.task_error,
-            payload=payload,
+            payload=error_payload,
         )
         # 把会话的状态也变成失败
         await self.uow.sessions.transition_status(

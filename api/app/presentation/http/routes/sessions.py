@@ -1,10 +1,10 @@
 from asyncio import CancelledError
 from http import HTTPStatus
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, Response, UploadFile, File, Request
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
-from uuid import UUID
 
 from app.application.agent_runner_service import AgentRunnerService, AgentRunnerStreamItem
 from app.application.context_engineering_service import ContextEngineeringService
@@ -236,6 +236,7 @@ async def stream_message(
     # 这样不存在返回404，并发执行返回409。
     running_session = await service.mark_running(session_id)
 
+    # 创建消息
     try:
         message, message_event = await service.create_user_message(
             session_id=session_id,
@@ -256,6 +257,7 @@ async def stream_message(
         message_event
     ).model_dump(mode="json")
 
+    # 运行任务
     async def event_stream():
         plan_event_id: UUID | None = None
         try:
@@ -268,6 +270,7 @@ async def stream_message(
                 await service.mark_stopped_if_running(session_id)
                 return
 
+            # 创建任务
             _plan, plan_event = await planner_service.create_plan(
                 session_id=session_id,
                 task=clean_content,
@@ -277,6 +280,8 @@ async def stream_message(
                 plan_event.type.value,
                 to_event_response(plan_event).model_dump(mode="json"),
             )
+
+            # 运行任务
             async for event in react_service.stream_latest_plan(
                     session_id=session_id,
                     plan_event_id=plan_event.id,
@@ -297,8 +302,11 @@ async def stream_message(
         except Exception as error:
             error_event = await react_service.record_task_error(
                 session_id=session_id,
-                plan_event_id=plan_event_id,
                 error=error,
+                task_id=clean_content,
+                current_index=None,
+                current_step=None,
+                plan_id=str(plan_event_id),
             )
             yield encode_sse(
                 error_event.type.value,
@@ -465,10 +473,10 @@ async def get_task_task(
 ) -> ApiResponse[AgentTaskResponse]:
     task = await queue.get_task(task_id)
     if task is None:
-        return ApiResponse(
+        raise AppException(
             code=404,
             message="task not found",
-            data=None,
+            status_code=404,
         )
     return ApiResponse(data=AgentTaskResponse.model_validate(task))
 
@@ -483,10 +491,10 @@ async def cancel_agent_task(
 ) -> ApiResponse[AgentTaskResponse]:
     task = await queue.cancel_task(task_id)
     if task is None:
-        return ApiResponse(
+        raise AppException(
             code=404,
             message="task not found",
-            data=None,
+            status_code=404,
         )
     return ApiResponse(data=AgentTaskResponse.model_validate(task))
 
@@ -501,10 +509,10 @@ async def retry_agent_task(
 ) -> ApiResponse[AgentTaskResponse]:
     task = await queue.retry_task(task_id)
     if task is None:
-        return ApiResponse(
+        raise AppException(
             code=404,
             message="task not found",
-            data=None,
+            status_code=404,
         )
     return ApiResponse(data=AgentTaskResponse.model_validate(task))
 
@@ -519,9 +527,9 @@ async def recover_latest_session_task(
 ) -> ApiResponse[AgentTaskResponse]:
     task = await queue.recover_session_task(session_id)
     if task is None:
-        return ApiResponse(
+        raise AppException(
             code=404,
             message="task not found",
-            data=None,
+            status_code=404,
         )
     return ApiResponse(data=AgentTaskResponse.model_validate(task))

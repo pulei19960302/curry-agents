@@ -22,6 +22,7 @@ export type PlanStepView = PlanStep & {
   completedAt: string | null;
   toolEvent: SessionEventItem | null;
   summary: string;
+  errorEvent: SessionEventItem | null;
 };
 
 // 多 Agent 工具输出的前端解析结果。步骤卡片和最终回答都会读取它

@@ -82,7 +82,11 @@ export default function AgentRunBlock({
 
 function FinalAnswer({ event, steps }: { event: SessionEventItem; steps: PlanStepView[] }) {
   const failed = event.type === "task_error";
-  const eventAnswer = parseString(event.payload.final_answer);
+  const eventAnswer = parseString(event.payload?.final_answer);
+  const userMessage = parseString(event.payload?.user_message);
+  const suggestion = parseString(event.payload?.suggestion);
+  const requestId = parseString(event.payload?.request_id);
+  const taskId = parseString(event.payload?.task_id);
   const firstAnswer = steps
     .map((step) => parseToolOutput(step.toolEvent))
     .find((output) => output?.final_answer)?.final_answer;
@@ -95,7 +99,21 @@ function FinalAnswer({ event, steps }: { event: SessionEventItem; steps: PlanSte
         <div className="text-sm font-semibold text-blue-400">CurryAgent</div>
         <div className="mt-3 rounded-[26px] border border-white/10 bg-white/[0.035] px-5 py-4 text-lg leading-9 text-zinc-300">
           {failed ? (
-            parseString(event.payload.message) || "任务执行失败，请查看事件详情。"
+            <div className="grid gap-3">
+              <p className="font-semibold text-rose-100">
+                {userMessage || parseString(event.payload.message) || "任务执行失败。"}
+              </p>
+              {suggestion ? (
+                <p className="text-base leading-7 text-rose-200/80">建议：{suggestion}</p>
+              ) : null}
+              {requestId || taskId ? (
+                <p className="text-sm leading-6 text-zinc-500">
+                  {requestId ? `request_id：${requestId}` : ""}
+                  {requestId && taskId ? " / " : ""}
+                  {taskId ? `task_id：${taskId}` : ""}
+                </p>
+              ) : null}
+            </div>
           ) : eventAnswer ? (
             <MarkdownContent content={eventAnswer} />
           ) : firstAnswer ? (

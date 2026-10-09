@@ -1042,6 +1042,7 @@ function buildObservationFromEvent(event: SessionEventItem): ToolObservation {
     summary: parseString(event.payload.output),
     title: title || "工具调用",
     toolEvent: event,
+    errorEvent: null,
   };
   return buildToolObservation(syntheticStep);
 }

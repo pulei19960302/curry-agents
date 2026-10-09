@@ -1,9 +1,20 @@
-import type { ApiResponse } from "@/types/api";
+import type { ApiResponse, ApiErrorData } from "@/types/api";
 
-export async function requestApi<T>(
-  url: string,
-  init?: RequestInit,
-): Promise<T> {
+export class ApiRequestError extends Error {
+  apiError: ApiErrorData | null;
+  code: number;
+  status: number;
+
+  constructor(message: string, code: number, status: number, apiError: ApiErrorData | null) {
+    super(message);
+    this.name = "ApiRequestError";
+    this.apiError = apiError;
+    this.code = code;
+    this.status = status;
+  }
+}
+
+export async function requestApi<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, {
     ...init,
     headers: {
@@ -18,7 +29,8 @@ export async function requestApi<T>(
 
   const payload = (await response.json()) as ApiResponse<T>;
   if (!response.ok || payload.code >= 400) {
-    throw new Error(payload.message || `HTTP ${response.status}`);
+    const message = payload.error?.user_message || payload.message || `HTTP ${response.status}`;
+    throw new ApiRequestError(message, payload.code, response.status, payload.error ?? null);
   }
   if (payload.data === null) {
     throw new Error("empty response");

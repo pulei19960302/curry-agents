@@ -74,6 +74,7 @@ export function buildStepViews(plan: AgentPlan, events: SessionEventItem[]): Pla
       status,
       summary: parseString(completed?.payload.summary),
       toolEvent,
+      errorEvent: failed ?? null,
     };
   });
 }
@@ -375,7 +376,12 @@ export function getStepDisplaySummary(step: PlanStepView) {
     return buildToolObservation(step).brief || step.expected_output || "步骤已完成。";
   }
   if (step.status === "failed") {
-    return "步骤执行失败，请查看任务错误或工具详情。";
+    const userMessage = parseString(step.errorEvent?.payload.user_message);
+    const suggestion = parseString(step.errorEvent?.payload.suggestion);
+    if (userMessage && suggestion) {
+      return `${userMessage} 建议：${suggestion}`;
+    }
+    return userMessage || "步骤执行失败，请查看任务错误或工具详情。";
   }
   return step.description || step.expected_output || "等待执行。";
 }

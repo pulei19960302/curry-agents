@@ -1,9 +1,9 @@
 from asyncio import CancelledError
-
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
-from fastapi import Request
 from uuid import UUID
+
+from fastapi import Request
 
 from app.application.planner_service import PlannerService
 from app.application.react_agent_service import ReActAgentService
@@ -61,7 +61,6 @@ class AgentRunnerService:
         )
 
     # 运行一次用户消息驱动的 Agent 任务
-
     async def stream_user_message(
             self,
             session_id: UUID,
@@ -184,8 +183,11 @@ class AgentRunnerService:
             # 然后通过 SSE 通知前端，而不是让 200 流直接断开。
             error_event = await self.react_service.record_task_error(
                 session_id=session_id,
-                plan_event_id=plan_event_id,
                 error=error,
+                current_step=None,
+                current_index=None,
+                plan_id=str(plan_event_id),
+                task_id=None
             )
             yield AgentRunnerStreamItem(
                 name=error_event.type.value,
