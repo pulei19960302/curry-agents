@@ -2,9 +2,9 @@ import type { ChatMessage, SessionEventItem } from "@/types/sessions";
 import type { AgentPlan, PlanProgressView } from "@/types/planner";
 import type {
   AgentRunViewModel,
-  TimelineItem,
-  PlanStepView,
   MultiAgentInlineResult,
+  PlanStepView,
+  TimelineItem,
   ToolObservation,
 } from "@/components/conversation/types";
 import { parseString } from "@/utils";
@@ -203,7 +203,7 @@ export function buildToolObservation(step: PlanStepView): ToolObservation {
   const toolName = parseString(toolEvent?.payload.tool_name);
   const output = parseString(toolEvent?.payload.output);
 
-  if (toolEvent?.id) {
+  if (!toolEvent?.id) {
     return {
       title: "等待工具调用",
       brief: step.description || step.expected_output || "这个步骤还没有开始调用工具。",

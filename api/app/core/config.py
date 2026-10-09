@@ -51,7 +51,7 @@ class Settings(BaseSettings):
     file_storage_backend: str = "local"
 
     # llm 配置
-    llm_config_path: str = "config/llm.yaml"
+    llm_config_path: str = "runtime-config/llm.yaml"
 
     # redis_task 相关配置
     redis_url: str = "redis://127.0.0.1:6379/0"
@@ -90,10 +90,10 @@ class Settings(BaseSettings):
     search_max_results: int = 5
 
     # mcp 配置路径
-    mcp_config_path: str = "config/mcp.yaml"
+    mcp_config_path: str = "runtime-config/mcp.yaml"
 
     # agent 配置路径
-    a2a_config_path: str = "config/a2a.yaml"
+    a2a_config_path: str = "runtime-config/a2a.yaml"
 
     # Context Memory：长期记忆检索和注入预算
     context_memory_candidate_limit: int = 100  # 先从数据库最多取多少条候选记忆

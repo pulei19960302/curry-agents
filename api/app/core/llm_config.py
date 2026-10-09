@@ -1,11 +1,10 @@
 from functools import lru_cache
-from pathlib import Path
-
 import yaml
 from pydantic import BaseModel, Field
 
 from app.core.config import settings
 from app.core.exceptions import AppException
+from app.core.runtime_config import ensure_runtime_config
 
 
 # 定义 YAML 中 llm 节点的数据结构
@@ -35,7 +34,10 @@ class LLMConfig(BaseModel):
 # @lru_cache 表示配置加载后会缓存。这样每次请求不会重复读 YAML 文件
 @lru_cache
 def load_llm_config() -> LLMConfig:
-    llm_config_path = Path(settings.llm_config_path)
+    llm_config_path = ensure_runtime_config(
+        settings.llm_config_path,
+        "llm.yaml",
+    )
 
     if not llm_config_path.is_file():
         raise AppException(

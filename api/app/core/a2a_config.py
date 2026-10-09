@@ -1,5 +1,3 @@
-from pathlib import Path
-
 import yaml
 from functools import lru_cache
 from pydantic import Field, model_validator
@@ -7,6 +5,7 @@ from typing import Literal
 
 from app.core.config import settings
 from app.core.exceptions import AppException
+from app.core.runtime_config import ensure_runtime_config
 from app.schemas.common import ResponseSchema
 
 A2aTransport = Literal["demo", "http"]
@@ -66,7 +65,10 @@ def load_a2a_config() -> A2aConfig:
          工具注册、路由和前端面板都可以从同一份配置中读取能力。
      """
 
-    path = Path(settings.a2a_config_path)
+    path = ensure_runtime_config(
+        settings.a2a_config_path,
+        "a2a.yaml",
+    )
 
     if not path.is_file():
         raise AppException(

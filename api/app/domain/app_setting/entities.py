@@ -9,6 +9,10 @@ class SettingsModule:
     enabled: bool
     default_item: str | None = None
     items: list[dict[str, object]] = field(default_factory=list)
+    status: str = "ready"  # 模块健康状态，例如 ready 或 warning
+    status_message: str = ""  # 解释为什么可用或为什么需要处理
+    source: str = ""  # 配置来自哪里，例如 .env、config/llm.yaml
+    verify_command: str = ""  # 用户可以直接复制执行的验证命令
 
 
 @dataclass(slots=True)

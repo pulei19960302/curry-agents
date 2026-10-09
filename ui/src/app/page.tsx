@@ -14,6 +14,8 @@ import {
   deleteSettingsIntegration,
   fetchAppSettings,
   updateSettingsModule,
+  updateSettingsItem,
+  deleteSettingsItem,
 } from "./lib/settings-api";
 
 import type { LoadState, StatusBadgeView } from "@/types/sessions";
@@ -153,6 +155,26 @@ export default function Home() {
     }
   }
 
+  async function toggleSettingsItem(moduleKey: string, itemName: string, enabled: boolean) {
+    try {
+      await updateSettingsItem(moduleKey, itemName, { enabled });
+      await refreshSettings();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "unknown error";
+      setAppSettings({ type: "error", message });
+    }
+  }
+
+  async function removeSettingsItem(moduleKey: string, itemName: string) {
+    try {
+      await deleteSettingsItem(moduleKey, itemName);
+      await refreshSettings();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "unknown error";
+      setAppSettings({ type: "error", message });
+    }
+  }
+
   const apiBadge = getBadge(apiStatus, "API 正常", "API 异常");
   const dbBadge = getBadge(databaseStatus, "数据库正常", "数据库异常");
 
@@ -234,7 +256,9 @@ export default function Home() {
               <SettingsWorkspace
                 onCreateIntegration={addSettingsIntegration}
                 onDeleteIntegration={removeSettingsIntegration}
+                onDeleteItem={removeSettingsItem}
                 onRefresh={refreshSettings}
+                onToggleItem={toggleSettingsItem}
                 onToggleModule={toggleSettingsModule}
                 settings={appSettings}
               />

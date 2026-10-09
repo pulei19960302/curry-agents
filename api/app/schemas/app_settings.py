@@ -1,9 +1,17 @@
-from pydantic import Field
 from typing import Literal
+
+from pydantic import Field
 
 from app.schemas.common import ResponseSchema
 
-SettingsIntegrationKind = Literal["llm", 'mcp', "a2a", "multi_agent"]
+SettingsIntegrationKind = Literal[
+    "llm",
+    "search",
+    "mcp",
+    "a2a",
+    "multi_agent",
+    "sandbox"
+]
 
 
 class SettingsItemResponse(ResponseSchema):
@@ -20,6 +28,10 @@ class SettingsModuleResponse(ResponseSchema):
     enabled: bool  # 设置页中的运行时启用状态。
     default_item: str | None  # 当前默认项，例如默认 provider 或默认远程 Agent。
     items: list[SettingsItemResponse]  # 模块下的配置项列表。
+    status: str
+    status_message: str
+    source: str
+    verify_command: str
 
 
 class SettingsIntegrationResponse(ResponseSchema):

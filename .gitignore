@@ -28,3 +28,7 @@ node_modules/
 # ui
 
 /ui/node_modules/
+
+# run time
+runtime-config/
+api/runtime-config/

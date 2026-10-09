@@ -1,5 +1,3 @@
-from pathlib import Path
-
 import yaml
 from functools import lru_cache
 from pydantic import BaseModel, Field, model_validator
@@ -7,6 +5,7 @@ from typing import Literal
 
 from app.core.config import settings
 from app.core.exceptions import AppException
+from app.core.runtime_config import ensure_runtime_config
 
 McpTransport = Literal["demo", "stdio", "sse", "streamable_http"]
 
@@ -44,7 +43,10 @@ class McpConfig(BaseModel):
 @lru_cache
 def load_mcp_config() -> McpConfig:
     """读取 MCP YAML 配置。"""
-    path = Path(settings.mcp_config_path)
+    path = ensure_runtime_config(
+        settings.mcp_config_path,
+        "mcp.yaml",
+    )
 
     if not path.is_file():
         raise AppException(

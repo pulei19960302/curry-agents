@@ -97,7 +97,7 @@ services:
       FILE_STORAGE_BACKEND: ${FILE_STORAGE_BACKEND:-local}
 
       # LLM相关
-      LLM_CONFIG_PATH: ${LLM_CONFIG_PATH:-config/llm.yaml}
+      LLM_CONFIG_PATH: ${LLM_CONFIG_PATH:-runtime-config/llm.yaml}
       LLM_API_KEY: ${LLM_API_KEY:-}
 
       # redis 相关服务
@@ -130,7 +130,7 @@ services:
       SEARCH_TIMEOUT_SECONDS: ${SEARCH_TIMEOUT_SECONDS:-10}
       SEARCH_MAX_RESULTS: ${SEARCH_MAX_RESULTS:-5}
       # mcp 配置文件
-      MCP_CONFIG_PATH: ${MCP_CONFIG_PATH:-config/mcp.yaml}
+      MCP_CONFIG_PATH: ${MCP_CONFIG_PATH:-runtime-config/mcp.yaml}
 
       # Context Memory：长期记忆检索和注入预算
       CONTEXT_MEMORY_CANDIDATE_LIMIT: ${CONTEXT_MEMORY_CANDIDATE_LIMIT:-100}
@@ -142,10 +142,13 @@ services:
       # 运行
       RUN_MIGRATIONS: ${RUN_MIGRATIONS:-true}
 
+      A2A_CONFIG_PATH: ${A2A_CONFIG_PATH:-runtime-config/a2a.yaml}
+
     ports:
       - "${API_PORT:-8000}:8000"
     volumes:
       - api_uploads:/app/uploads
+      - api_runtime_config:/app/runtime-config
     networks:
       - curry-network
     healthcheck:
@@ -286,6 +289,7 @@ volumes:
   tiny_rdm_data:
   api_uploads:
   sandbox_workspace:
+  api_runtime_config:
 
 networks:
   curry-network:

@@ -32,3 +32,24 @@ export function deleteSettingsIntegration(integrationId: string): Promise<Settin
     method: "DELETE",
   });
 }
+
+export function updateSettingsItem(
+  moduleKey: string,
+  itemName: string,
+  payload: { enabled: boolean },
+): Promise<SettingsModule> {
+  return requestApi<SettingsModule>(
+    `/api/config/modules/${moduleKey}/items/${encodeURIComponent(itemName)}`,
+    {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    },
+  );
+}
+
+export function deleteSettingsItem(moduleKey: string, itemName: string): Promise<SettingsModule> {
+  return requestApi<SettingsModule>(
+    `/api/config/modules/${moduleKey}/items/${encodeURIComponent(itemName)}`,
+    { method: "DELETE" },
+  );
+}
