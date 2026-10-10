@@ -445,7 +445,8 @@ class ReActAgentService:
                             "不要输出隐藏推理，不要提到 JSON 或内部事件。"
                             "如果是代码文件解析任务，请总结组件结构、状态逻辑、风险点和优化建议。"
                             "如果是搜索任务，请总结搜索发现和可点击来源价值。"
-                            "输出中文 Markdown，包含一段总述和若干要点。"
+                            "输出中文 Markdown，并固定包含：## 总结、## 证据与引用、## 产物、## 下一步建议。"
+                            "没有产物时写“本次任务没有生成新的文件产物”。"
                         ),
                     ),
                     LLMMessage(
@@ -482,7 +483,10 @@ class ReActAgentService:
         tool_events = [
             event for event in events if event.type is SessionEventType.tool_called
         ]
-        lines: list[str] = []
+
+        summary_lines: list[str] = []
+        evidence_lines: list[str] = []
+        artifact_lines: list[str] = []
         for index, event in enumerate(tool_events, start=1):
             step_id = str(event.payload.get("step_id") or "")
             step = step_map.get(step_id, {})
@@ -494,27 +498,143 @@ class ReActAgentService:
             tool_name = str(event.payload.get("tool_name") or "")
             output = str(event.payload.get("output") or "")
             summary = self._summarize_tool_output(tool_name, output)
-            lines.append(f"{index}. **{title}**：{summary}")
+            summary_lines.append(f"{index}. **{title}**：{summary}")
+            evidence_lines.extend(
+                self._build_final_answer_reference_lines(
+                    title=title,
+                    tool_name=tool_name,
+                    output=output,
+                )
+            )
+            artifact_lines.extend(
+                self._build_final_answer_artifact_lines(
+                    title=title,
+                    tool_name=tool_name,
+                    output=output,
+                )
+            )
 
         # 3. 如果没有工具事件，给出保守总结，避免前端展示空白结果。
-        if not lines:
+        if not summary_lines:
             return "任务已完成，但本轮没有产生可展示的工具观察结果。"
 
-        return "\n".join(
+        goal = str(plan.get("goal") or plan.get("title") or "本次任务")
+        sections = [
+            "## 总结",
+            f"任务已完成。我围绕“{goal}”完成了计划步骤，并整理了可追溯的工具观察结果。",
+            "",
+            "## 执行结果",
+            *summary_lines,
+        ]
+        if evidence_lines:
+            sections.extend(["", "## 证据与引用", *evidence_lines])
+        if artifact_lines:
+            sections.extend(["", "## 产物", *artifact_lines])
+        sections.extend(
             [
-                "任务已完成。我按计划完成了以下工作：",
                 "",
-                *lines,
-                "",
-                "你可以点击每个步骤里的工具节点，在右侧查看调用参数、搜索来源、终端输出、截图或协作详情。",
+                "## 下一步建议",
+                "- 可以点击每个步骤里的工具节点，在右侧查看调用参数、搜索来源、终端输出、截图或协作详情。",
+                "- 如果需要继续交付，可以基于这些证据生成报告、代码修改建议或可下载文件。",
             ]
         )
+        return "\n".join(sections)
+
+    def _build_final_answer_reference_lines(
+            self,
+            *,
+            title: str,
+            tool_name: str,
+            output: str,
+    ) -> list[str]:
+        """从工具输出中提取最终回答可展示的证据引用。
+
+        这里仍然只使用可观察输出，不输出隐藏推理。搜索结果引用标题和 URL；
+        文件工具引用文件名和行号；浏览器工具引用页面标题和地址。
+        """
+
+        parsed = self._parse_json_object(output)
+        if parsed and parsed.get("kind") == "search_results":
+            items = parsed.get("items") if isinstance(parsed.get("items"), list) else []
+            lines: list[str] = []
+            for item in items[:5]:
+                if not isinstance(item, dict):
+                    continue
+                item_title = str(item.get("title") or "").strip()
+                url = str(item.get("url") or "").strip()
+                snippet = str(item.get("snippet") or "").strip()
+                if item_title and url:
+                    suffix = f"：{self._trim_text(snippet, 90)}" if snippet else ""
+                    lines.append(f"- **{item_title}**（{url}）{suffix}")
+            return lines
+
+        if tool_name.startswith("file_"):
+            useful_lines = [
+                line.strip()
+                for line in output.splitlines()
+                if line.strip()
+                   and (
+                           line.startswith(("文件：", "路径：", "第 "))
+                           or "行" in line
+                           or Path(line.strip()).suffix
+                   )
+            ][:4]
+            if useful_lines:
+                return [f"- **{title}**：{self._trim_text(line, 160)}" for line in useful_lines]
+
+        if tool_name.startswith("browser_"):
+            page_title = self._match_line_value(output, "页面标题")
+            current_url = (
+                    self._match_line_value(output, "页面已打开")
+                    or self._match_line_value(output, "当前地址")
+            )
+            if page_title or current_url:
+                return [
+                    f"- **{title}**：{page_title or '浏览器页面'}"
+                    f"{f'（{current_url}）' if current_url else ''}"
+                ]
+
+        return []
+
+    # 提取东西
+    def _build_final_answer_artifact_lines(
+            self,
+            *,
+            title: str,
+            tool_name: str,
+            output: str,
+    ) -> list[str]:
+        """从工具输出中提取可交付产物路径或截图信息。"""
+
+        parsed = self._parse_json_object(output)
+        # 截屏的
+        if parsed and parsed.get("kind") == "browser_screenshot":
+            size = int(parsed.get("size") or 0)
+            size_text = f"{round(size / 1024)} KB" if size > 0 else "未知大小"
+            return [f"- **{title}**：浏览器截图已生成，大小约 {size_text}。"]
+
+        artifact_labels = ["输出文件", "文件路径", "保存路径", "下载地址"]
+        lines: list[str] = []
+        for label in artifact_labels:
+            value = self._match_line_value(output, label)
+            if value:
+                lines.append(f"- **{title}**：{label} `{value}`")
+        if lines:
+            return lines
+
+        if tool_name.startswith("file_write"):
+            first_line = self._first_useful_line(output)
+            return [f"- **{title}**：{self._trim_text(first_line, 160)}"]
+
+        return []
 
     def _build_final_answer_evidence(
             self,
             plan: dict,
             events: list[SessionEvent],
     ) -> str:
+        """把工具事件整理成 LLM 可消费的观察材料。"""
+
         """把工具事件整理成 LLM 可消费的观察材料。"""
 
         steps = plan.get("steps", [])
@@ -537,18 +657,93 @@ class ReActAgentService:
             tool_name = str(event.payload.get("tool_name") or "")
             arguments = event.payload.get("arguments") or {}
             output = str(event.payload.get("output") or "")
+            summary = self._summarize_tool_output(tool_name, output)
+            references = self._build_final_answer_reference_lines(
+                title=title,
+                tool_name=tool_name,
+                output=output,
+            )
+            artifacts = self._build_final_answer_artifact_lines(
+                title=title,
+                tool_name=tool_name,
+                output=output,
+            )
+            block_lines = [
+                f"## {title}",
+                f"- 工具：{tool_name}",
+                f"- 参数：{json.dumps(arguments, ensure_ascii=False)}",
+                f"- 摘要：{summary}",
+            ]
+            if references:
+                block_lines.extend(["- 引用：", *references])
+            if artifacts:
+                block_lines.extend(["- 产物：", *artifacts])
+            block_lines.extend(["- 原始观察摘录：", self._trim_text(output, 900)])
             blocks.append(
-                "\n".join(
-                    [
-                        f"## {title}",
-                        f"- 工具：{tool_name}",
-                        f"- 参数：{json.dumps(arguments, ensure_ascii=False)}",
-                        "- 输出：",
-                        self._trim_text(output, 1800),
-                    ]
-                )
+                "\n".join(block_lines)
             )
         return "\n\n".join(blocks)
+
+    def _summarize_tool_output(self, tool_name: str, output: str) -> str:
+        """把不同工具的原始输出压缩成一句可读观察。"""
+
+        # 1. JSON 类工具先按 kind 识别，这覆盖搜索、截图、多 Agent 等结构化输出。
+        parsed = self._parse_json_object(output)
+        if parsed:
+            kind = str(parsed.get("kind") or "")
+            if kind == "search_results":
+                items = parsed.get("items") if isinstance(parsed.get("items"), list) else []
+                titles = [
+                    str(item.get("title"))
+                    for item in items[:3]
+                    if isinstance(item, dict) and item.get("title")
+                ]
+                suffix = f" 代表结果包括：{'、'.join(titles)}。" if titles else ""
+                return (
+                    f"已搜索“{parsed.get('query') or '相关关键词'}”，"
+                    f"找到 {len(items)} 条候选结果。{suffix}"
+                )
+            if kind == "search_error":
+                return (
+                    f"搜索“{parsed.get('query') or '相关关键词'}”时页面搜索暂不可用，"
+                    f"原因：{parsed.get('message') or '网络请求失败'}。"
+                )
+            if kind == "browser_screenshot":
+                size = int(parsed.get("size") or 0)
+                size_text = f"{round(size / 1024)} KB" if size > 0 else "未知大小"
+                return f"已完成浏览器截图，图片大小约 {size_text}。"
+            if kind == "multi_agent_result" and parsed.get("final_answer"):
+                return self._trim_text(str(parsed.get("final_answer")), 180)
+            if kind:
+                return f"工具返回了 {kind} 类型的结构化结果。"
+
+        # 2. Shell 输出通常是多行文本，优先提取命令和退出码。
+        if tool_name.startswith("shell_"):
+            command = self._match_line_value(output, "命令")
+            return_code = self._match_line_value(output, "退出码")
+            return (
+                f"已执行命令{f'“{command}”' if command else ''}，"
+                f"退出码 {return_code or '未知'}。"
+            )
+
+        # 3. 浏览器打开页面时，工具输出里会带页面标题或当前地址。
+        if tool_name.startswith("browser_"):
+            page_title = self._match_line_value(output, "页面标题")
+            current_url = (
+                    self._match_line_value(output, "页面已打开")
+                    or self._match_line_value(output, "当前地址")
+            )
+            if page_title:
+                return f"浏览器已打开页面，页面标题为：{page_title}。"
+            if current_url:
+                return f"浏览器已访问：{current_url}。"
+            return "浏览器工具已返回页面观察结果。"
+
+        # 4. 文件工具直接取第一行有意义的文本。
+        if tool_name.startswith("file_"):
+            return self._trim_text(self._first_useful_line(output), 180)
+
+        return self._trim_text(self._first_useful_line(output), 180)
 
     def _summarize_tool_output(self, tool_name: str, output: str) -> str:
         """把不同工具的原始输出压缩成一句可读观察。"""
