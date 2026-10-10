@@ -19,12 +19,12 @@ function normalizeAutolinks(value: string) {
 
 const components: Components = {
   h1: ({ children }) => (
-    <h1 className="mt-5 mb-3 text-xl leading-8 font-semibold text-zinc-50 first:mt-0">
+    <h1 className="mt-5 mb-3 text-lg leading-8 font-semibold text-zinc-50 first:mt-0">
       {children}
     </h1>
   ),
   h2: ({ children }) => (
-    <h2 className="mt-5 mb-2.5 text-lg leading-7 font-semibold text-zinc-50 first:mt-0">
+    <h2 className="mt-5 mb-2.5 text-base leading-7 font-semibold text-zinc-50 first:mt-0">
       {children}
     </h2>
   ),
@@ -34,15 +34,15 @@ const components: Components = {
     </h3>
   ),
   p: ({ children }) => (
-    <p className="mb-3 text-base leading-8 text-zinc-400 last:mb-0">{children}</p>
+    <p className="mb-3 text-[15px] leading-7 text-zinc-400 last:mb-0">{children}</p>
   ),
   ul: ({ children }) => (
-    <ul className="mb-3 list-disc space-y-1 pl-5 text-base leading-8 text-zinc-400 last:mb-0">
+    <ul className="mb-3 list-disc space-y-1 pl-5 text-[15px] leading-7 text-zinc-400 last:mb-0">
       {children}
     </ul>
   ),
   ol: ({ children }) => (
-    <ol className="mb-3 list-decimal space-y-1 pl-5 text-base leading-8 text-zinc-400 last:mb-0">
+    <ol className="mb-3 list-decimal space-y-1 pl-5 text-[15px] leading-7 text-zinc-400 last:mb-0">
       {children}
     </ol>
   ),
@@ -102,7 +102,7 @@ const components: Components = {
 
 export default function MarkdownContent({ className = "", content }: MarkdownContentProps) {
   return (
-    <div className={`wrap-break-words ${className}`}>
+    <div className={`break-words ${className}`}>
       <ReactMarkdown components={components} remarkPlugins={[remarkGfm]}>
         {normalizeAutolinks(content)}
       </ReactMarkdown>

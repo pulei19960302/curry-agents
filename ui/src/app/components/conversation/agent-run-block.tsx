@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 
-import { AlertCircle, Check, Loader2 } from "lucide-react";
+import { AlertCircle, Check, Loader2, ClipboardCheck } from "lucide-react";
 import { buildStepViews, parseToolOutput } from "./view-model";
 import AgentAvatar from "./agent-avatar";
 import StepCard from "./step-card";
@@ -97,7 +97,11 @@ function FinalAnswer({ event, steps }: { event: SessionEventItem; steps: PlanSte
       <AgentAvatar />
       <div className="max-w-5xl pt-1">
         <div className="text-sm font-semibold text-blue-400">CurryAgent</div>
-        <div className="mt-3 rounded-[26px] border border-white/10 bg-white/[0.035] px-5 py-4 text-lg leading-9 text-zinc-300">
+        <div className="mt-3 rounded-[26px] border border-white/10 bg-white/[0.035] px-5 py-4 text-zinc-300 shadow-xl shadow-black/20">
+          <div className="mb-4 flex items-center gap-2 border-b border-white/10 pb-3 text-xs font-semibold tracking-[0.18em] text-zinc-500 uppercase">
+            <ClipboardCheck className="text-blue-400" size={15} aria-hidden="true" />
+            {failed ? "Task Error" : "Final Answer"}
+          </div>
           {failed ? (
             <div className="grid gap-3">
               <p className="font-semibold text-rose-100">
@@ -115,11 +119,11 @@ function FinalAnswer({ event, steps }: { event: SessionEventItem; steps: PlanSte
               ) : null}
             </div>
           ) : eventAnswer ? (
-            <MarkdownContent content={eventAnswer} />
+            <MarkdownContent className="text-[15px]" content={eventAnswer} />
           ) : firstAnswer ? (
-            <MarkdownContent content={firstAnswer} />
+            <MarkdownContent className="text-[15px]" content={firstAnswer} />
           ) : (
-            <MarkdownContent content={fallbackAnswer} />
+            <MarkdownContent className="text-[15px]" content={fallbackAnswer} />
           )}
         </div>
       </div>

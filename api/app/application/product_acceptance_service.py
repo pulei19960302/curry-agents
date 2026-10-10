@@ -195,6 +195,57 @@ class ProductAcceptanceService:
                 ],
             ),
             ProductAcceptanceItem(
+                key="structured_error_experience",
+                title="结构化错误体验",
+                category="reliability",
+                status="ready",
+                evidence="API 错误响应和 task_error 事件包含错误类型、来源、用户提示、建议和 request_id。",
+                verify_steps=[
+                    "请求一个不存在的资源，例如 GET /api/sessions/not-a-real-id。",
+                    "确认响应中包含 error.type、error.source、error.user_message、error.suggestion 和 request_id。",
+                    "制造一次工具失败，确认对话流中显示用户可读错误和下一步建议。",
+                ],
+                related_routes=[
+                    "GET /api/sessions/{session_id}",
+                    "POST /api/sessions/{session_id}/messages/stream",
+                    "GET /api/sessions/{session_id}/events",
+                ],
+            ),
+            ProductAcceptanceItem(
+                key="file_parsing_references",
+                title="文件解析、摘要和引用片段",
+                category="files",
+                status="ready",
+                evidence="文件预览接口会返回 file_type、parse_status、summary、references 和裁剪后的 content。",
+                verify_steps=[
+                    "上传 Markdown、代码、CSV 或 PDF 文件。",
+                    "打开文件预览面板，确认出现解析摘要、类型、行数和引用片段。",
+                    "调用文件预览接口，确认 references 中包含 label、excerpt 和行号。",
+                ],
+                related_routes=[
+                    "POST /api/files",
+                    "GET /api/files/{file_id}/preview",
+                    "GET /api/sessions/{session_id}/files",
+                ],
+            ),
+            ProductAcceptanceItem(
+                key="final_answer_citations",
+                title="最终回答引用体系",
+                category="conversation",
+                status="ready",
+                evidence="task_done.final_answer 会整理总结、执行结果、证据与引用、产物和下一步建议。",
+                verify_steps=[
+                    "发送搜索总结、上传文件分析或生成文件任务。",
+                    "确认最终回答显示 ## 总结、## 证据与引用、## 产物、## 下一步建议。",
+                    "确认搜索来源、文件名或产物路径能在最终回答中看到。",
+                ],
+                related_routes=[
+                    "POST /api/sessions/{session_id}/messages/stream",
+                    "GET /api/sessions/{session_id}/events",
+                    "GET /api/files/{file_id}/preview",
+                ],
+            ),
+            ProductAcceptanceItem(
                 key="compose_startup",
                 title="Docker Compose 一键启动",
                 category="deployment",
